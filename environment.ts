@@ -299,12 +299,16 @@ export function createDevEnvironment<
 						console.warn(`⚠️ Service "${serviceName}" not found for checkTable`);
 						return true; // Default to seeding if service not found
 					}
-					const checkResult = await exec(
-						`psql "${serviceUrl}" -tAc 'SELECT COUNT(*) FROM "${tableName}" LIMIT 1'`,
-						{ throwOnError: false },
-					);
-					const count = checkResult.stdout.trim();
-					return checkResult.exitCode !== 0 || count === "0" || count === "";
+				const checkResult = await exec(
+					`psql "${serviceUrl}" -tAc 'SELECT COUNT(*) FROM "${tableName}" LIMIT 1'`,
+					{ throwOnError: false },
+				);
+				const count = checkResult.stdout.trim();
+				const shouldSeed = checkResult.exitCode !== 0 || count === "0" || count === "";
+				if (!shouldSeed) {
+					console.log(`  📊 Table "${tableName}" has ${count} rows`);
+				}
+				return shouldSeed;
 				};
 
 				// Build seed check context with helpers

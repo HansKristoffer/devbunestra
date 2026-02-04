@@ -76,6 +76,12 @@ export async function runCli<
 		});
 		if (result.exitCode !== 0) {
 			console.error("❌ Seeding failed");
+			if (result.stderr) {
+				console.error(result.stderr);
+			}
+			if (result.stdout) {
+				console.error(result.stdout);
+			}
 			process.exit(1);
 		}
 		console.log("");
