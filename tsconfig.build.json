@@ -4,8 +4,7 @@
 		"declaration": true,
 		"emitDeclarationOnly": true,
 		"outDir": "./dist",
-		"noEmit": false,
-		"allowImportingTsExtensions": false
+		"noEmit": false
 	},
 	"include": ["*.ts", "core/*.ts"],
 	"exclude": ["node_modules", "**/*.test.ts"]
