@@ -56,7 +56,7 @@ export function logFrontendPort(port: number | undefined): void {
  * @example
  * ```typescript
  * // In vite.config.ts
- * import { getEnvVar } from 'devbunestra'
+ * import { getEnvVar } from 'buncargo'
  * import config from '../../dev.config'
  *
  * export default defineConfig(async ({ command }) => {

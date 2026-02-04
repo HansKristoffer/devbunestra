@@ -1,5 +1,5 @@
 {
-  "name": "devbunestra",
+  "name": "buncargo",
   "version": "1.0.5",
   "description": "A Bun-powered development environment CLI for managing Docker Compose services, dev servers, and environment variables",
   "type": "module",
@@ -9,7 +9,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HansKristoffer/devbunestra.git"
+    "url": "git+https://github.com/HansKristoffer/buncargo.git"
   },
   "author": "Kristoffer Hansen",
   "keywords": [
@@ -35,7 +35,7 @@
   ],
   "bin": {
     "dev-tools": "bin.ts",
-    "devbunestra": "bin.ts"
+    "buncargo": "bin.ts"
   },
   "exports": {
     ".": {

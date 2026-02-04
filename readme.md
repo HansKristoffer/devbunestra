@@ -1,4 +1,4 @@
-# Devbunestra
+# Buncargo
 
 Type-safe development environment CLI for Docker Compose-based projects. Handles container lifecycle, port isolation for git worktrees, and dev server orchestration.
 
@@ -7,7 +7,7 @@ Type-safe development environment CLI for Docker Compose-based projects. Handles
 ### 1. Create `dev.config.ts` in your project root
 
 ```typescript
-import { defineDevConfig } from 'devbunestra'
+import { defineDevConfig } from 'buncargo'
 
 export default defineDevConfig({
   projectPrefix: 'myapp',
@@ -58,12 +58,12 @@ export default defineDevConfig({
 ### 2. Run it
 
 ```bash
-bunx devbunestra dev           # Start containers + dev servers
-bunx devbunestra dev --up-only # Start containers only
-bunx devbunestra dev --down    # Stop containers
-bunx devbunestra dev --reset   # Stop and remove volumes
-bunx devbunestra prisma studio # Run prisma with correct DATABASE_URL
-bunx devbunestra env           # Print ports/urls as JSON
+bunx buncargo dev           # Start containers + dev servers
+bunx buncargo dev --up-only # Start containers only
+bunx buncargo dev --down    # Stop containers
+bunx buncargo dev --reset   # Stop and remove volumes
+bunx buncargo prisma studio # Run prisma with correct DATABASE_URL
+bunx buncargo env           # Print ports/urls as JSON
 ```
 
 Or add scripts to `package.json`:
@@ -71,9 +71,9 @@ Or add scripts to `package.json`:
 ```json
 {
   "scripts": {
-    "dev": "bunx devbunestra dev",
-    "dev:docker:down": "bunx devbunestra dev --down",
-    "prisma": "bunx devbunestra prisma"
+    "dev": "bunx buncargo dev",
+    "dev:docker:down": "bunx buncargo dev --down",
+    "prisma": "bunx buncargo prisma"
   }
 }
 ```
@@ -83,7 +83,7 @@ Or add scripts to `package.json`:
 Need ports/urls in your code (e.g., for tests)?
 
 ```typescript
-import { loadDevEnv } from 'devbunestra'
+import { loadDevEnv } from 'buncargo'
 
 const env = await loadDevEnv()
 console.log(env.ports.postgres)  // 5432 (or offset port)

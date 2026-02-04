@@ -80,7 +80,7 @@ function formatDimLabel(label: string, value: string): string {
  *
  * @example
  * ```typescript
- * import { defineDevConfig, createDevEnvironment } from 'devbunestra'
+ * import { defineDevConfig, createDevEnvironment } from 'buncargo'
  *
  * const config = defineDevConfig({
  *   projectPrefix: 'myapp',

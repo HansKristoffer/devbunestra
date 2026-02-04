@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 
 /**
- * CLI Entry Point for devbunestra
+ * CLI Entry Point for buncargo
  *
  * Usage:
- *   bunx devbunestra dev           # Start containers + dev servers
- *   bunx devbunestra dev --down    # Stop containers
- *   bunx devbunestra dev --reset   # Stop + remove volumes
- *   bunx devbunestra prisma ...    # Run prisma commands
- *   bunx devbunestra help          # Show help
+ *   bunx buncargo dev           # Start containers + dev servers
+ *   bunx buncargo dev --down    # Stop containers
+ *   bunx buncargo dev --reset   # Stop + remove volumes
+ *   bunx buncargo prisma ...    # Run prisma commands
+ *   bunx buncargo help          # Show help
  */
 
 import { runCli } from "./cli";
@@ -51,7 +51,7 @@ async function loadEnv(): Promise<
 					console.error("");
 					console.error("   Export your config as default:");
 					console.error("");
-					console.error("   import { defineDevConfig } from 'devbunestra'");
+					console.error("   import { defineDevConfig } from 'buncargo'");
 					console.error("");
 					console.error("   export default defineDevConfig({ ... })");
 					process.exit(1);
@@ -84,7 +84,7 @@ async function loadEnv(): Promise<
 	console.error("");
 	console.error("   Create a dev.config.ts file in your project root:");
 	console.error("");
-	console.error("   import { defineDevConfig } from 'devbunestra'");
+	console.error("   import { defineDevConfig } from 'buncargo'");
 	console.error("");
 	console.error("   export default defineDevConfig({");
 	console.error("     projectPrefix: 'myapp',");
@@ -158,10 +158,10 @@ async function handleEnv(): Promise<void> {
 
 function showHelp(): void {
 	console.log(`
-devbunestra - Development environment CLI
+buncargo - Development environment CLI
 
 USAGE:
-  bunx devbunestra <command> [options]
+  bunx buncargo <command> [options]
 
 COMMANDS:
   dev                 Start the development environment
@@ -179,15 +179,15 @@ DEV OPTIONS:
   --lint              Run typecheck (no Docker required)
 
 EXAMPLES:
-  bunx devbunestra dev              # Start everything
-  bunx devbunestra dev --down       # Stop containers
-  bunx devbunestra prisma studio    # Open Prisma Studio
-  bunx devbunestra env              # Get ports/urls as JSON
+  bunx buncargo dev              # Start everything
+  bunx buncargo dev --down       # Stop containers
+  bunx buncargo prisma studio    # Open Prisma Studio
+  bunx buncargo env              # Get ports/urls as JSON
 
 CONFIG:
   Create a dev.config.ts with a default export:
 
-  import { defineDevConfig } from 'devbunestra'
+  import { defineDevConfig } from 'buncargo'
 
   export default defineDevConfig({
     projectPrefix: 'myapp',
@@ -199,7 +199,7 @@ CONFIG:
 
 function showVersion(): void {
 	const pkg = require("./package.json");
-	console.log(`devbunestra v${pkg.version}`);
+	console.log(`buncargo v${pkg.version}`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -242,7 +242,7 @@ async function main(): Promise<void> {
 		default:
 			console.error(`❌ Unknown command: ${command}`);
 			console.error("");
-			console.error('   Run "bunx devbunestra help" for available commands.');
+			console.error('   Run "bunx buncargo help" for available commands.');
 			process.exit(1);
 	}
 }

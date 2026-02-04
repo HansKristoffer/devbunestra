@@ -18,7 +18,7 @@ import type {
  * @example
  * ```typescript
  * import { dev } from './dev.config'
- * import { runCli } from 'devbunestra'
+ * import { runCli } from 'buncargo'
  *
  * await runCli(dev)
  * ```

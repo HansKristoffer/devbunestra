@@ -23,7 +23,7 @@ let cachedEnv: DevEnvironment<
  *
  * @example
  * ```typescript
- * import { loadDevEnv } from 'devbunestra'
+ * import { loadDevEnv } from 'buncargo'
  *
  * const env = await loadDevEnv()
  * console.log(env.ports.postgres)  // 5432 (or offset port)
@@ -78,7 +78,7 @@ export async function loadDevEnv(options?: {
  * await loadDevEnv()
  *
  * // Then use sync getter anywhere
- * import { getDevEnv } from 'devbunestra'
+ * import { getDevEnv } from 'buncargo'
  * const env = getDevEnv()
  * ```
  */
