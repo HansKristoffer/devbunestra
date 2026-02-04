@@ -53,22 +53,17 @@ export async function runCli<
 		process.exit(0);
 	}
 
-	// Start containers if not already running
-	const running = await env.isRunning();
-	if (running) {
-		console.log("✓ Containers already running");
-	} else {
-		await env.start({ startServers: false, wait: true });
-	}
+	// All other paths need containers + migrations + seeding
+	await env.start({ startServers: false, wait: true });
 
-	// Handle --migrate (just run hooks, then exit)
+	// Handle --migrate (exit after migrations)
 	if (args.includes("--migrate")) {
 		console.log("");
 		console.log("✅ Migrations applied successfully");
 		process.exit(0);
 	}
 
-	// Handle --seed (force run seeders via hook context)
+	// Handle --seed (run seeders, then exit)
 	if (args.includes("--seed")) {
 		console.log("🌱 Running seeders...");
 		const result = await env.exec("bun run run:seeder", {
@@ -89,7 +84,7 @@ export async function runCli<
 		process.exit(0);
 	}
 
-	// Handle --up-only
+	// Handle --up-only (exit after containers ready)
 	if (args.includes("--up-only")) {
 		console.log("");
 		console.log("✅ Containers started. Environment ready.");
