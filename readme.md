@@ -1,4 +1,4 @@
-# dev-tools-v2
+# Devbunestra
 
 Type-safe development environment CLI for Docker Compose-based projects. Handles container lifecycle, port isolation for git worktrees, and dev server orchestration.
 
