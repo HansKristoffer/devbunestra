@@ -349,7 +349,7 @@ export function createDevEnvironment<
 			}
 
 			// Start servers
-			const pids = startDevServers(apps, root, envVars, {
+			const pids = await startDevServers(apps, root, envVars, ports, {
 				verbose,
 				productionBuild,
 				isCI,
@@ -417,7 +417,7 @@ export function createDevEnvironment<
 			buildApps(apps, root, envVars, { verbose });
 		}
 
-		return startDevServers(apps, root, envVars, {
+		return startDevServers(apps, root, envVars, ports, {
 			verbose,
 			productionBuild,
 			isCI,

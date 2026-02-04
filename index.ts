@@ -83,7 +83,13 @@ export {
 	isWorktree,
 } from "./core/ports";
 
-export { isProcessAlive } from "./core/process";
+export {
+	getProcessOnPort,
+	isPortInUse,
+	isProcessAlive,
+	killProcessOnPort,
+	killProcessOnPortAndWait,
+} from "./core/process";
 export {
 	getEnvVar,
 	isCI,
