@@ -1,0 +1,93 @@
+{
+	"name": "devbunestra",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"module": "index.ts",
+	"main": "index.ts",
+	"types": "index.ts",
+	"bin": {
+		"dev-tools": "./bin.ts",
+		"devbunestra": "./bin.ts"
+	},
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"bun": "./index.ts",
+			"default": "./index.ts"
+		},
+		"./types": {
+			"types": "./types.ts",
+			"bun": "./types.ts",
+			"default": "./types.ts"
+		},
+		"./config": {
+			"types": "./config.ts",
+			"bun": "./config.ts",
+			"default": "./config.ts"
+		},
+		"./environment": {
+			"types": "./environment.ts",
+			"bun": "./environment.ts",
+			"default": "./environment.ts"
+		},
+		"./core/ports": {
+			"types": "./core/ports.ts",
+			"bun": "./core/ports.ts",
+			"default": "./core/ports.ts"
+		},
+		"./core/docker": {
+			"types": "./core/docker.ts",
+			"bun": "./core/docker.ts",
+			"default": "./core/docker.ts"
+		},
+		"./core/network": {
+			"types": "./core/network.ts",
+			"bun": "./core/network.ts",
+			"default": "./core/network.ts"
+		},
+		"./core/process": {
+			"types": "./core/process.ts",
+			"bun": "./core/process.ts",
+			"default": "./core/process.ts"
+		},
+		"./core/watchdog": {
+			"types": "./core/watchdog.ts",
+			"bun": "./core/watchdog.ts",
+			"default": "./core/watchdog.ts"
+		},
+		"./core/utils": {
+			"types": "./core/utils.ts",
+			"bun": "./core/utils.ts",
+			"default": "./core/utils.ts"
+		},
+		"./cli": {
+			"types": "./cli.ts",
+			"bun": "./cli.ts",
+			"default": "./cli.ts"
+		},
+		"./lint": {
+			"types": "./lint.ts",
+			"bun": "./lint.ts",
+			"default": "./lint.ts"
+		},
+		"./loader": {
+			"types": "./loader.ts",
+			"bun": "./loader.ts",
+			"default": "./loader.ts"
+		}
+	},
+	"scripts": {
+		"lint": "bun run typecheck && biome check",
+		"lint:write": "bun run typecheck && biome check --fix && biome format",
+		"typecheck": "tsgo --incremental"
+	},
+	"devDependencies": {
+		"@types/bun": "1.3.2",
+		"@biomejs/biome": "2.3.4",
+		"@typescript/native-preview": "7.0.0-dev.20260127.1"
+	},
+	"dependencies": {
+		"picocolors": "^1.1.1"
+	}
+}

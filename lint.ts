@@ -1,0 +1,277 @@
+import { $, Glob } from "bun";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for running workspace typechecks.
+ */
+export interface WorkspaceTypecheckOptions {
+	/** Root directory to search from (defaults to cwd) */
+	root?: string;
+	/** Glob patterns for workspaces to check (defaults to apps/*, packages/*, modules) */
+	patterns?: string[];
+	/** Maximum concurrent typecheck processes (defaults to 1) */
+	concurrency?: number;
+	/** Print output to console (defaults to true) */
+	verbose?: boolean;
+}
+
+/**
+ * Result of a single workspace typecheck.
+ */
+export interface WorkspaceTypecheckResult {
+	workspace: string;
+	duration: number;
+	success: boolean;
+	fileCount: number;
+	errorOutput?: string;
+}
+
+/**
+ * Overall result of running typechecks across all workspaces.
+ */
+export interface TypecheckResult {
+	success: boolean;
+	totalDuration: number;
+	totalFiles: number;
+	workspaceCount: number;
+	results: WorkspaceTypecheckResult[];
+}
+
+interface Workspace {
+	path: string;
+	fileCount: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_PATTERNS = ["apps/*", "packages/*", "modules"];
+const DEFAULT_CONCURRENCY = 1;
+
+// Patterns that indicate a corrupted tsgo cache (deadlock/panic)
+const CORRUPTED_CACHE_PATTERNS = [
+	"all goroutines are asleep - deadlock",
+	"fatal error:",
+	"panic:",
+	"github.com/microsoft/typescript-go",
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helper Functions
+// ═══════════════════════════════════════════════════════════════════════════
+
+function isCorruptedCacheError(output: string): boolean {
+	return CORRUPTED_CACHE_PATTERNS.some((pattern) => output.includes(pattern));
+}
+
+async function clearTsBuildInfo(
+	workspace: string,
+	verbose: boolean,
+): Promise<void> {
+	if (verbose) {
+		console.log(`🧹 Clearing corrupted tsbuildinfo cache for ${workspace}...`);
+	}
+	// Clear both old tsbuildinfo and new tsgo cache
+	await $`find ${workspace} -name '*.tsbuildinfo' -type f -delete`
+		.nothrow()
+		.quiet();
+	await $`find ${workspace} -path '*/.cache/tsbuildinfo.json' -type f -delete`
+		.nothrow()
+		.quiet();
+}
+
+async function countTypeScriptFiles(
+	pkgPath: string,
+	root: string,
+): Promise<number> {
+	let count = 0;
+	const tsGlob = new Glob(`${pkgPath}/**/*.{ts,tsx}`);
+	for await (const _ of tsGlob.scan(root)) {
+		count++;
+	}
+	return count;
+}
+
+function formatErrorOutput(output: string): string {
+	return output
+		.split("\n")
+		.map((line) => {
+			return line
+				.replace(/\.\.\/\.\.\/packages\/modules\//g, "")
+				.replace(/\((\d+),(\d+)\):?/g, ":$1:$2 -");
+		})
+		.join("\n")
+		.trim();
+}
+
+async function runSingleTypecheck(
+	workspace: string,
+	fileCount: number,
+	root: string,
+	verbose: boolean,
+	isRetry = false,
+): Promise<WorkspaceTypecheckResult> {
+	const startTime = performance.now();
+	if (verbose) {
+		console.log(
+			`Running typecheck in ${workspace} (${fileCount} files)${isRetry ? " (retry)" : ""}...`,
+		);
+	}
+
+	const workspacePath = `${root}/${workspace}`;
+	const result = await $`cd ${workspacePath} && bun run typecheck`
+		.nothrow()
+		.quiet();
+	const duration = Number(((performance.now() - startTime) / 1000).toFixed(2));
+	const success = result.exitCode === 0;
+
+	let errorOutput: string | undefined;
+	if (!success) {
+		const stdout = result.stdout.toString().trim();
+		const stderr = result.stderr.toString().trim();
+		const parts = [stdout, stderr].filter(Boolean);
+		errorOutput = parts.length > 0 ? parts.join("\n") : undefined;
+
+		// Check for corrupted cache and retry once
+		if (!isRetry && errorOutput && isCorruptedCacheError(errorOutput)) {
+			await clearTsBuildInfo(workspacePath, verbose);
+			return runSingleTypecheck(workspace, fileCount, root, verbose, true);
+		}
+	}
+
+	return { workspace, duration, success, fileCount, errorOutput };
+}
+
+async function discoverWorkspaces(
+	patterns: string[],
+	root: string,
+): Promise<Workspace[]> {
+	const workspaces: Workspace[] = [];
+
+	for (const pattern of patterns) {
+		const glob = new Glob(`${pattern}/package.json`);
+		for await (const match of glob.scan(root)) {
+			const pkgPath = match.replace("/package.json", "");
+			const pkgJson = await Bun.file(`${root}/${match}`).json();
+			if (pkgJson.scripts?.typecheck) {
+				const fileCount = await countTypeScriptFiles(pkgPath, root);
+				workspaces.push({ path: pkgPath, fileCount });
+			}
+		}
+	}
+
+	// Sort by file count (smallest first for faster feedback)
+	workspaces.sort((a, b) => a.fileCount - b.fileCount);
+
+	return workspaces;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Main Export
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Run TypeScript typechecks across all workspaces that have a `typecheck` script.
+ *
+ * @example
+ * ```typescript
+ * const result = await runWorkspaceTypecheck({ verbose: true })
+ * if (!result.success) {
+ *   console.error('Typecheck failed')
+ *   process.exit(1)
+ * }
+ * ```
+ */
+export async function runWorkspaceTypecheck(
+	options: WorkspaceTypecheckOptions = {},
+): Promise<TypecheckResult> {
+	const {
+		root = process.cwd(),
+		patterns = DEFAULT_PATTERNS,
+		concurrency = DEFAULT_CONCURRENCY,
+		verbose = true,
+	} = options;
+
+	// Discover workspaces
+	const workspaces = await discoverWorkspaces(patterns, root);
+
+	if (workspaces.length === 0) {
+		if (verbose) {
+			console.log("No workspaces with typecheck script found.");
+		}
+		return {
+			success: true,
+			totalDuration: 0,
+			totalFiles: 0,
+			workspaceCount: 0,
+			results: [],
+		};
+	}
+
+	const totalStartTime = performance.now();
+	if (verbose) {
+		console.log(
+			`Running typecheck across ${workspaces.length} workspaces with concurrency limit of ${concurrency}...\n`,
+		);
+	}
+
+	const results: WorkspaceTypecheckResult[] = [];
+	const running = new Set<Promise<void>>();
+
+	for (let i = 0; i < workspaces.length; i++) {
+		const { path, fileCount } = workspaces[i];
+		const promise = runSingleTypecheck(path, fileCount, root, verbose).then(
+			(result) => {
+				results[i] = result;
+				running.delete(promise);
+
+				if (verbose) {
+					const icon = result.success ? "✅" : "❌";
+					const log = result.success ? console.log : console.error;
+					log(
+						`${icon} ${result.workspace} (${result.fileCount} files) ${result.success ? "completed" : "failed"} in ${result.duration.toFixed(2)}s`,
+					);
+					if (!result.success && result.errorOutput) {
+						console.error(`\n${formatErrorOutput(result.errorOutput)}`);
+					}
+				}
+			},
+		);
+
+		running.add(promise);
+
+		if (running.size >= concurrency) {
+			await Promise.race(running);
+		}
+	}
+
+	await Promise.all(running);
+
+	const totalDuration = Number(
+		((performance.now() - totalStartTime) / 1000).toFixed(2),
+	);
+	const totalFiles = workspaces.reduce((sum, w) => sum + w.fileCount, 0);
+	const success = results.every((r) => r.success);
+
+	if (verbose) {
+		if (success) {
+			console.log(
+				`\nAll typecheck checks passed! Total time: ${totalDuration}s (${totalFiles} files)`,
+			);
+		} else {
+			console.error(`\nTypecheck failed. Total time: ${totalDuration}s`);
+		}
+	}
+
+	return {
+		success,
+		totalDuration,
+		totalFiles,
+		workspaceCount: workspaces.length,
+		results,
+	};
+}
