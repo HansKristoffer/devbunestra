@@ -87,6 +87,7 @@ export {
 	getProcessOnPort,
 	isPortInUse,
 	isProcessAlive,
+	killProcessesOnAppPorts,
 	killProcessOnPort,
 	killProcessOnPortAndWait,
 } from "./core/process";

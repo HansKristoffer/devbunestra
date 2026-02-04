@@ -369,6 +369,42 @@ export async function killProcessOnPortAndWait(
 	return released;
 }
 
+/**
+ * Kill any existing processes using the specified app ports.
+ * Used before starting dev servers to ensure ports are available.
+ */
+export async function killProcessesOnAppPorts(
+	apps: Record<string, AppConfig>,
+	ports: Record<string, number>,
+	options: { verbose?: boolean } = {},
+): Promise<void> {
+	const { verbose = true } = options;
+	const appNames = Object.keys(apps);
+	if (appNames.length === 0) return;
+
+	let killedAny = false;
+
+	for (const name of appNames) {
+		const port = ports[name];
+		if (port === undefined) continue;
+
+		const existingPid = getProcessOnPort(port);
+		if (existingPid !== null) {
+			if (!killedAny && verbose) {
+				console.log("");
+				killedAny = true;
+			}
+			if (verbose) {
+				console.log(`⚠️  Port ${port} (${name}) is in use by process ${existingPid}`);
+			}
+			const killed = await killProcessOnPortAndWait(port, { verbose });
+			if (!killed && verbose) {
+				console.log(`   ⚠️  Could not kill process on port ${port}, server may fail to start`);
+			}
+		}
+	}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Process Management
 // ═══════════════════════════════════════════════════════════════════════════

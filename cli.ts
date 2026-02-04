@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { killProcessesOnAppPorts } from "./core/process";
 import { spawnWatchdog, startHeartbeat, stopHeartbeat } from "./core/watchdog";
 import type {
 	AppConfig,
@@ -108,6 +109,9 @@ export async function runCli<
 		await new Promise(() => {});
 		return;
 	}
+
+	// Kill any existing processes on app ports before starting
+	await killProcessesOnAppPorts(env.apps, env.ports);
 
 	// Start dev servers interactively
 	console.log("");
