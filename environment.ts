@@ -265,14 +265,19 @@ export function createDevEnvironment<
 				}),
 			);
 
-			// Check for failures
-			for (const { name, result } of migrationResults) {
-				if (result.exitCode !== 0) {
-					console.error(`❌ Migration "${name}" failed`);
-					console.error(result.stderr);
-					throw new Error(`Migration "${name}" failed`);
+		// Check for failures
+		for (const { name, result } of migrationResults) {
+			if (result.exitCode !== 0) {
+				console.error(`❌ Migration "${name}" failed`);
+				if (result.stdout) {
+					console.error(result.stdout);
 				}
+				if (result.stderr) {
+					console.error(result.stderr);
+				}
+				throw new Error(`Migration "${name}" failed`);
 			}
+		}
 
 			if (verbose) console.log("✓ Migrations complete");
 		}
