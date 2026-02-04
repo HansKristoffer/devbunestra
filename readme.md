@@ -1,6 +1,6 @@
 # Buncargo
 
-Type-safe development environment CLI for Docker Compose-based projects. Handles container lifecycle, port isolation for git worktrees, and dev server orchestration.
+Type-safe development environment CLI for Docker Compose-based projects. Handles container lifecycle, port isolation for git worktrees, and dev server orchestration. It's easy!
 
 ## Quick Start
 
