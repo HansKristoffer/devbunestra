@@ -40,16 +40,6 @@ export async function runCli<
 	// Log environment info
 	env.logInfo();
 
-	// Handle --lint (no Docker required)
-	if (args.includes("--lint")) {
-		const { runWorkspaceTypecheck } = await import("./lint");
-		const result = await runWorkspaceTypecheck({
-			root: env.root,
-			verbose: true,
-		});
-		process.exit(result.success ? 0 : 1);
-	}
-
 	// Handle --down
 	if (args.includes("--down")) {
 		await env.stop();

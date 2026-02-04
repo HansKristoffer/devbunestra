@@ -7,6 +7,7 @@
  *   bunx buncargo dev           # Start containers + dev servers
  *   bunx buncargo dev --down    # Stop containers
  *   bunx buncargo dev --reset   # Stop + remove volumes
+ *   bunx buncargo typecheck     # Run TypeScript typecheck
  *   bunx buncargo prisma ...    # Run prisma commands
  *   bunx buncargo help          # Show help
  */
@@ -82,6 +83,16 @@ async function handleEnv(): Promise<void> {
 	);
 }
 
+async function handleTypecheck(): Promise<void> {
+	const env = await loadEnv();
+	const { runWorkspaceTypecheck } = await import("./lint");
+	const result = await runWorkspaceTypecheck({
+		root: env.root,
+		verbose: true,
+	});
+	process.exit(result.success ? 0 : 1);
+}
+
 function showHelp(): void {
 	console.log(`
 buncargo - Development environment CLI
@@ -91,6 +102,7 @@ USAGE:
 
 COMMANDS:
   dev                 Start the development environment
+  typecheck           Run TypeScript typecheck across workspaces
   prisma <args>       Run Prisma CLI with correct DATABASE_URL
   env                 Print environment info as JSON
   help                Show this help message
@@ -102,11 +114,11 @@ DEV OPTIONS:
   --reset             Stop containers and remove volumes
   --migrate           Run migrations only
   --seed              Run seeders
-  --lint              Run typecheck (no Docker required)
 
 EXAMPLES:
   bunx buncargo dev              # Start everything
   bunx buncargo dev --down       # Stop containers
+  bunx buncargo typecheck        # Run typecheck
   bunx buncargo prisma studio    # Open Prisma Studio
   bunx buncargo env              # Get ports/urls as JSON
 
@@ -155,6 +167,10 @@ async function main(): Promise<void> {
 	switch (command) {
 		case "dev":
 			await handleDev(commandArgs);
+			break;
+
+		case "typecheck":
+			await handleTypecheck();
 			break;
 
 		case "prisma":

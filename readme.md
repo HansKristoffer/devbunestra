@@ -62,6 +62,7 @@ bunx buncargo dev           # Start containers + dev servers
 bunx buncargo dev --up-only # Start containers only
 bunx buncargo dev --down    # Stop containers
 bunx buncargo dev --reset   # Stop and remove volumes
+bunx buncargo typecheck     # Run TypeScript typecheck across workspaces
 bunx buncargo prisma studio # Run prisma with correct DATABASE_URL
 bunx buncargo env           # Print ports/urls as JSON
 ```
@@ -73,6 +74,7 @@ Or add scripts to `package.json`:
   "scripts": {
     "dev": "bunx buncargo dev",
     "dev:docker:down": "bunx buncargo dev --down",
+    "typecheck": "bunx buncargo typecheck",
     "prisma": "bunx buncargo prisma"
   }
 }
@@ -154,6 +156,7 @@ Containers automatically stop after 10 minutes of inactivity when running via CL
 ```
 COMMANDS:
   dev                 Start the development environment
+  typecheck           Run TypeScript typecheck across workspaces
   prisma <args>       Run Prisma CLI with correct DATABASE_URL
   env                 Print environment info as JSON
   help                Show help
@@ -165,7 +168,6 @@ DEV OPTIONS:
   --reset             Stop containers and remove volumes
   --migrate           Run migrations only
   --seed              Run seeders
-  --lint              Run typecheck (no Docker required)
 ```
 
 ## Environment Variables
