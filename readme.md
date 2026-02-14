@@ -97,7 +97,20 @@ console.log(env.urls.postgres)   // postgresql://...
 
 ### Worktree Isolation
 
-Each git worktree automatically gets unique ports (offset 10-99) so you can run multiple branches simultaneously without conflicts.
+Each git worktree automatically gets:
+
+- Unique ports (offset 10-99)
+- Unique Docker Compose project names
+
+This means each worktree has isolated containers, networks, and volumes by default.
+
+If you intentionally want shared Docker state across worktrees, set:
+
+```typescript
+options: {
+  worktreeIsolation: false
+}
+```
 
 ### Health Checks
 

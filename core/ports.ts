@@ -57,6 +57,28 @@ export function isWorktree(root?: string): boolean {
 	return getWorktreeName(root) !== null;
 }
 
+/**
+ * Sanitize a string for use as a Docker Compose project suffix.
+ */
+function sanitizeProjectSuffix(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/[^a-z0-9-]/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Get a sanitized worktree-derived suffix for Docker project isolation.
+ * Returns null when not running in a worktree.
+ */
+export function getWorktreeProjectSuffix(root?: string): string | null {
+	const worktreeName = getWorktreeName(root);
+	if (!worktreeName) return null;
+	const sanitized = sanitizeProjectSuffix(worktreeName);
+	return sanitized || "worktree";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Port Offset Calculation
 // ═══════════════════════════════════════════════════════════════════════════
@@ -102,6 +124,48 @@ export function getProjectName(
 	const dirName = basename(monorepoRoot);
 	const baseName = `${prefix}-${dirName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
 	return suffix ? `${baseName}-${suffix}` : baseName;
+}
+
+export interface DevIdentityOptions {
+	projectPrefix: string;
+	suffix?: string;
+	root?: string;
+	worktreeIsolation?: boolean;
+}
+
+export interface DevIdentity {
+	worktree: boolean;
+	worktreeSuffix: string | null;
+	projectSuffix?: string;
+	projectName: string;
+	portOffset: number;
+}
+
+/**
+ * Compute all identity values used by the dev environment in one place.
+ */
+export function computeDevIdentity(options: DevIdentityOptions): DevIdentity {
+	const {
+		projectPrefix,
+		suffix,
+		root: providedRoot,
+		worktreeIsolation = true,
+	} = options;
+	const root = providedRoot ?? findMonorepoRoot();
+	const worktree = isWorktree(root);
+	const worktreeSuffix =
+		worktree && worktreeIsolation ? getWorktreeProjectSuffix(root) : null;
+	const projectSuffix = [suffix, worktreeSuffix].filter(Boolean).join("-") || undefined;
+	const projectName = getProjectName(projectPrefix, projectSuffix, root);
+	const portOffset = calculatePortOffset(suffix, root);
+
+	return {
+		worktree,
+		worktreeSuffix,
+		projectSuffix,
+		projectName,
+		portOffset,
+	};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

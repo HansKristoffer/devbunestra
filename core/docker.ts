@@ -12,6 +12,8 @@ import { sleep } from "./utils";
 
 export const POLL_INTERVAL = 250; // Fast polling for quicker startup
 export const MAX_ATTEMPTS = 120; // 30 seconds total (120 * 250ms)
+export const DOCKER_NOT_RUNNING_MESSAGE =
+	"Docker is not running. Please start Docker and try again.";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Container Status Checks
@@ -32,6 +34,30 @@ export async function isContainerRunning(
 		return result.trim() === "running";
 	} catch {
 		return false;
+	}
+}
+
+/**
+ * Check if Docker daemon is running and reachable.
+ */
+export function isDockerRunning(): boolean {
+	try {
+		execSync('docker info --format "{{.ServerVersion}}"', {
+			encoding: "utf-8",
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Ensure Docker is running before attempting compose operations.
+ */
+export function assertDockerRunning(): void {
+	if (!isDockerRunning()) {
+		throw new Error(DOCKER_NOT_RUNNING_MESSAGE);
 	}
 }
 
@@ -75,6 +101,7 @@ export function startContainers(
 	options: StartContainersOptions = {},
 ): void {
 	const { verbose = true, wait = true, composeFile } = options;
+	assertDockerRunning();
 
 	if (verbose) console.log("🐳 Starting Docker containers...");
 
@@ -106,6 +133,7 @@ export function stopContainers(
 	options: StopContainersOptions = {},
 ): void {
 	const { verbose = true, removeVolumes = false, composeFile } = options;
+	assertDockerRunning();
 
 	if (verbose) {
 		console.log(
@@ -139,6 +167,7 @@ export function startService(
 	options: { verbose?: boolean; composeFile?: string } = {},
 ): void {
 	const { verbose = true, composeFile } = options;
+	assertDockerRunning();
 
 	if (verbose) console.log(`🐳 Starting ${serviceName}...`);
 

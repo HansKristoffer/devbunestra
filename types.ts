@@ -259,7 +259,13 @@ export interface SeedConfig<
  * Options for the dev environment.
  */
 export interface DevOptions {
-	/** Enable worktree isolation (unique ports per worktree). Default: true */
+	/**
+	 * Enable worktree isolation. When true (default), each worktree gets:
+	 * - unique ports (offset)
+	 * - unique Docker Compose project name (separate containers/networks/volumes)
+	 *
+	 * Set to false to intentionally share Docker state across worktrees.
+	 */
 	worktreeIsolation?: boolean;
 	/** Auto-shutdown after idle time in ms. Set to false to disable. Default: false */
 	autoShutdown?: number | false;

@@ -4,16 +4,13 @@ import {
 	areContainersRunning,
 	startContainers,
 	stopContainers,
-	waitForAllServices,
 } from "./core/docker";
 import { getLocalIp, waitForDevServers, waitForServer } from "./core/network";
 import {
-	calculatePortOffset,
+	computeDevIdentity,
 	computePorts,
 	computeUrls,
 	findMonorepoRoot,
-	getProjectName,
-	isWorktree,
 } from "./core/ports";
 import {
 	buildApps,
@@ -107,9 +104,13 @@ export function createDevEnvironment<
 	// Compute environment values
 	const root = findMonorepoRoot();
 	const suffix = options.suffix;
-	const worktree = isWorktree(root);
-	const portOffset = calculatePortOffset(suffix, root);
-	const projectName = getProjectName(config.projectPrefix, suffix, root);
+	const identity = computeDevIdentity({
+		projectPrefix: config.projectPrefix,
+		suffix,
+		root,
+		worktreeIsolation: config.options?.worktreeIsolation,
+	});
+	const { worktree, projectSuffix, portOffset, projectName } = identity;
 	const localIp = getLocalIp();
 
 	const services = config.services;
@@ -224,15 +225,6 @@ export function createDevEnvironment<
 				verbose,
 				wait,
 				composeFile: config.options?.composeFile,
-			});
-		}
-
-		// Wait for services to be healthy
-		if (wait) {
-			await waitForAllServices(services, ports, {
-				verbose,
-				projectName,
-				root,
 			});
 		}
 
@@ -489,8 +481,8 @@ export function createDevEnvironment<
 				portOffset > 0 ? `+${portOffset}` : "none",
 			),
 		);
-		if (suffix) {
-			console.log(formatDimLabel("Suffix:", suffix));
+		if (projectSuffix) {
+			console.log(formatDimLabel("Suffix:", projectSuffix));
 		}
 		console.log(formatDimLabel("Local IP:", localIp));
 		console.log("");

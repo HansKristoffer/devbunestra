@@ -1,6 +1,15 @@
 import { describe, expect, it } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AppConfig, ServiceConfig } from "../types";
-import { computePorts, computeUrls, getProjectName } from "./ports";
+import {
+	computeDevIdentity,
+	computePorts,
+	computeUrls,
+	getProjectName,
+	getWorktreeProjectSuffix,
+} from "./ports";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // computePorts Tests
@@ -263,5 +272,90 @@ describe("getProjectName", () => {
 		const result = getProjectName("myapp", undefined, "/home/user/my_project");
 
 		expect(result).toBe("myapp-my-project");
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// getWorktreeProjectSuffix Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("getWorktreeProjectSuffix", () => {
+	it("returns null outside worktree", () => {
+		const result = getWorktreeProjectSuffix("/tmp/does-not-exist");
+		expect(result).toBeNull();
+	});
+
+	it("returns sanitized suffix from worktree name", () => {
+		const testDir = join(tmpdir(), `buncargo-worktree-test-${Date.now()}`);
+		mkdirSync(testDir, { recursive: true });
+		try {
+			writeFileSync(join(testDir, ".git"), "gitdir: /tmp/repo/worktrees/Feature_Branch.1");
+			const result = getWorktreeProjectSuffix(testDir);
+			expect(result).toBe("feature-branch-1");
+		} finally {
+			rmSync(testDir, { recursive: true, force: true });
+		}
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// computeDevIdentity Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("computeDevIdentity", () => {
+	it("includes worktree suffix in project name by default", () => {
+		const testDir = join(tmpdir(), `buncargo-identity-test-${Date.now()}-1`);
+		mkdirSync(testDir, { recursive: true });
+		try {
+			writeFileSync(join(testDir, ".git"), "gitdir: /tmp/repo/worktrees/Feature_A");
+			const identity = computeDevIdentity({
+				projectPrefix: "myapp",
+				root: testDir,
+			});
+			expect(identity.worktree).toBe(true);
+			expect(identity.worktreeSuffix).toBe("feature-a");
+			expect(identity.projectSuffix).toBe("feature-a");
+			expect(identity.projectName).toBe(getProjectName("myapp", "feature-a", testDir));
+		} finally {
+			rmSync(testDir, { recursive: true, force: true });
+		}
+	});
+
+	it("omits worktree suffix when isolation is disabled", () => {
+		const testDir = join(tmpdir(), `buncargo-identity-test-${Date.now()}-2`);
+		mkdirSync(testDir, { recursive: true });
+		try {
+			writeFileSync(join(testDir, ".git"), "gitdir: /tmp/repo/worktrees/Feature_A");
+			const identity = computeDevIdentity({
+				projectPrefix: "myapp",
+				root: testDir,
+				worktreeIsolation: false,
+			});
+			expect(identity.worktree).toBe(true);
+			expect(identity.worktreeSuffix).toBeNull();
+			expect(identity.projectSuffix).toBeUndefined();
+			expect(identity.projectName).toBe(getProjectName("myapp", undefined, testDir));
+		} finally {
+			rmSync(testDir, { recursive: true, force: true });
+		}
+	});
+
+	it("composes explicit suffix with worktree suffix in stable order", () => {
+		const testDir = join(tmpdir(), `buncargo-identity-test-${Date.now()}-3`);
+		mkdirSync(testDir, { recursive: true });
+		try {
+			writeFileSync(join(testDir, ".git"), "gitdir: /tmp/repo/worktrees/Feature_A");
+			const identity = computeDevIdentity({
+				projectPrefix: "myapp",
+				root: testDir,
+				suffix: "test",
+			});
+			expect(identity.projectSuffix).toBe("test-feature-a");
+			expect(identity.projectName).toBe(
+				getProjectName("myapp", "test-feature-a", testDir),
+			);
+		} finally {
+			rmSync(testDir, { recursive: true, force: true });
+		}
 	});
 });

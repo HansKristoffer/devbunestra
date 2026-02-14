@@ -69,16 +69,21 @@ export type {
 
 export {
 	areContainersRunning,
+	assertDockerRunning,
+	DOCKER_NOT_RUNNING_MESSAGE,
 	isContainerRunning,
+	isDockerRunning,
 	MAX_ATTEMPTS,
 	POLL_INTERVAL,
 } from "./core/docker";
 
 export { getLocalIp, isPortAvailable, waitForServer } from "./core/network";
 export {
+	computeDevIdentity,
 	calculatePortOffset,
 	findMonorepoRoot,
 	getProjectName,
+	getWorktreeProjectSuffix,
 	getWorktreeName,
 	isWorktree,
 } from "./core/ports";
