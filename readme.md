@@ -1,27 +1,29 @@
 # Buncargo
 
-Type-safe development environment CLI for Docker Compose-based projects. Handles container lifecycle, port isolation for git worktrees, and dev server orchestration. It's easy!
+Type-safe development environment CLI for config-driven Docker Compose projects. Handles container lifecycle, port isolation for git worktrees, dev server orchestration, and auto-generated compose files. It's easy!
 
 ## Quick Start
 
 ### 1. Create `dev.config.ts` in your project root
 
 ```typescript
-import { defineDevConfig } from 'buncargo'
+import { defineDevConfig, service } from 'buncargo'
 
 export default defineDevConfig({
   projectPrefix: 'myapp',
 
   services: {
-    postgres: {
-      port: 5432,
-      healthCheck: 'pg_isready',
-      urlTemplate: ({ port }) => `postgresql://postgres:postgres@localhost:${port}/mydb`
-    },
-    redis: {
-      port: 6379,
-      healthCheck: 'redis-cli'
-    }
+    postgres: service.postgres({ database: 'mydb' }),
+    redis: service.redis(),
+    clickhouse: service.clickhouse({ database: 'analytics' }),
+    rabbitmq: service.custom({
+      port: 5672,
+      healthCheck: false,
+      docker: {
+        image: 'rabbitmq:3-management-alpine',
+        ports: ['${RABBITMQ_PORT:-5672}:5672']
+      }
+    })
   },
 
   apps: {
@@ -132,6 +134,51 @@ urlTemplate: ({ port, host, localIp }) =>
 
 Default templates exist for: `postgres`, `redis`, `clickhouse`, `mysql`, `mongodb`
 
+### Auto-Generated Docker Compose
+
+`buncargo` generates Docker Compose from `dev.config.ts` only.
+
+- No external `docker-compose.yml` is read.
+- Built-in service presets are available for `postgres`, `redis`, and `clickhouse`.
+- Fast path: use `service.postgres()`, `service.redis()`, `service.clickhouse()`.
+- Custom path: use `service.custom({ port, docker: { ... } })`.
+
+Generated file location (default):
+
+```typescript
+docker: {
+  generatedFile: '.buncargo/docker-compose.generated.yml',
+  writeStrategy: 'always' // or 'if-missing'
+}
+```
+
+Starter scenario (postgres + redis + clickhouse):
+
+```typescript
+export default defineDevConfig({
+  projectPrefix: 'gey',
+  services: {
+    postgres: service.postgres({ database: 'geysier' }),
+    redis: service.redis(),
+    clickhouse: service.clickhouse({ database: 'geysier' })
+  }
+})
+```
+
+Example custom service (raw escape hatch):
+
+```typescript
+services: {
+  nats: service.custom({
+    port: 4222,
+    docker: {
+      image: 'nats:2-alpine',
+      ports: ['${NATS_PORT:-4222}:4222']
+    }
+  })
+}
+```
+
 ### Lifecycle Hooks
 
 ```typescript
@@ -200,14 +247,11 @@ These are injected into:
 - Dev server processes
 - Hook `exec()` calls
 
-## Docker Compose
+## Migration from `docker-compose.yml`
 
-Your `docker-compose.yml` should use environment variables for ports:
+Move service definitions into `dev.config.ts`:
 
-```yaml
-services:
-  postgres:
-    image: postgres:16
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-```
+1. Keep `services` as the source of ports/health checks.
+2. For built-ins (`postgres`, `redis`, `clickhouse`), start with the preset defaults.
+3. For everything else, use `service.custom({ port, docker: { ... } })`.
+4. Delete manual compose scripts and run containers through `buncargo` only.

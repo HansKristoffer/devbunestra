@@ -96,9 +96,12 @@ describe("validateConfig", () => {
 			const config = {
 				projectPrefix: "myapp",
 				services: {
-					postgres: { port: 5432 },
+					postgres: {},
 				},
-			};
+			} as unknown as DevConfig<
+				Record<string, ServiceConfig>,
+				Record<string, AppConfig>
+			>;
 
 			const errors = validateConfig(config);
 
@@ -159,9 +162,12 @@ describe("validateConfig", () => {
 					postgres: { port: 5432 },
 				},
 				apps: {
-					api: { port: 3000, devCommand: "bun run dev" },
+					api: { port: 3000 },
 				},
-			};
+			} as unknown as DevConfig<
+				Record<string, ServiceConfig>,
+				Record<string, AppConfig>
+			>;
 
 			const errors = validateConfig(config);
 
@@ -175,9 +181,12 @@ describe("validateConfig", () => {
 					postgres: { port: 5432 },
 				},
 				apps: {
-					api: { port: 3000, devCommand: "bun run dev" },
+					api: { devCommand: "bun run dev" },
 				},
-			};
+			} as unknown as DevConfig<
+				Record<string, ServiceConfig>,
+				Record<string, AppConfig>
+			>;
 
 			const errors = validateConfig(config);
 
@@ -213,6 +222,68 @@ describe("validateConfig", () => {
 			const errors = validateConfig(config);
 
 			expect(errors).toHaveLength(0);
+		});
+	});
+
+	describe("docker generation validation", () => {
+		it("returns error when generatedFile is absolute", () => {
+			const config = createValidConfig();
+			config.docker = { generatedFile: "/tmp/docker-compose.yml" };
+
+			const errors = validateConfig(config);
+
+			expect(errors).toContain(
+				"docker.generatedFile must be a relative path inside the repo.",
+			);
+		});
+
+		it("returns error when generatedFile points outside repo", () => {
+			const config = createValidConfig();
+			config.docker = { generatedFile: "../docker-compose.yml" };
+
+			const errors = validateConfig(config);
+
+			expect(errors).toContain(
+				"docker.generatedFile cannot point outside the repository root.",
+			);
+		});
+
+		it("returns error for non-built-in service without docker definition", () => {
+			const config: DevConfig<{ nats: ServiceConfig }, Record<string, never>> = {
+				projectPrefix: "myapp",
+				services: {
+					nats: { port: 4222 },
+				},
+			};
+
+			const errors = validateConfig(config);
+
+			expect(errors).toContain(
+				'Service "nats" must define docker config (helper or raw) because it has no built-in preset.',
+			);
+		});
+
+		it("returns error for duplicate compose service names", () => {
+			const config: DevConfig<
+				{ postgres: ServiceConfig; shadow: ServiceConfig },
+				Record<string, never>
+			> = {
+				projectPrefix: "myapp",
+				services: {
+					postgres: { port: 5432, serviceName: "database" },
+					shadow: {
+						port: 5433,
+						serviceName: "database",
+						docker: { image: "postgres:16-alpine" },
+					},
+				},
+			};
+
+			const errors = validateConfig(config);
+
+			expect(errors).toContain(
+				'Duplicate compose service name "database". Use unique serviceName values.',
+			);
 		});
 	});
 });

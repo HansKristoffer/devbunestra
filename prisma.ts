@@ -80,9 +80,11 @@ export function createPrismaRunner<
 
 		console.log(`🐳 Starting ${service}...`);
 
+		const composeFile = env.ensureComposeFile();
 		const envVars = env.buildEnvVars();
 		startService(env.root, env.projectName, service, envVars, {
 			verbose: false,
+			composeFile,
 		});
 
 		const port = (env.ports as Record<string, number>)[service];

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { existsSync, writeFileSync } from "node:fs";
 import {
 	getHeartbeatFile,
+	getWatchdogComposeArg,
 	getWatchdogPidFile,
 	readHeartbeat,
 	removeHeartbeatFile,
@@ -52,6 +53,18 @@ describe("getWatchdogPidFile", () => {
 		const result = getWatchdogPidFile("myapp123");
 
 		expect(result).toBe("/tmp/myapp123-watchdog.pid");
+	});
+});
+
+describe("getWatchdogComposeArg", () => {
+	it("returns empty string when compose file is missing", () => {
+		expect(getWatchdogComposeArg()).toBe("");
+	});
+
+	it("returns quoted compose -f arg for generated file", () => {
+		expect(getWatchdogComposeArg(".buncargo/docker-compose.generated.yml")).toBe(
+			'-f ".buncargo/docker-compose.generated.yml"',
+		);
 	});
 });
 

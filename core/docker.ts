@@ -92,6 +92,13 @@ export interface StartContainersOptions {
 }
 
 /**
+ * Build `-f` argument for docker compose.
+ */
+export function getComposeArg(composeFile?: string): string {
+	return composeFile ? `-f "${composeFile}"` : "";
+}
+
+/**
  * Start Docker Compose containers.
  */
 export function startContainers(
@@ -105,7 +112,7 @@ export function startContainers(
 
 	if (verbose) console.log("🐳 Starting Docker containers...");
 
-	const composeArg = composeFile ? `-f ${composeFile}` : "";
+	const composeArg = getComposeArg(composeFile);
 	const waitFlag = wait ? "--wait" : "";
 	const cmd = `docker compose ${composeArg} up -d ${waitFlag}`.trim();
 
@@ -143,7 +150,7 @@ export function stopContainers(
 		);
 	}
 
-	const composeArg = composeFile ? `-f ${composeFile}` : "";
+	const composeArg = getComposeArg(composeFile);
 	const volumeFlag = removeVolumes ? "-v" : "";
 	const cmd = `docker compose ${composeArg} down ${volumeFlag}`.trim();
 
@@ -171,7 +178,7 @@ export function startService(
 
 	if (verbose) console.log(`🐳 Starting ${serviceName}...`);
 
-	const composeArg = composeFile ? `-f ${composeFile}` : "";
+	const composeArg = getComposeArg(composeFile);
 	const cmd = `docker compose ${composeArg} up -d ${serviceName}`.trim();
 
 	execSync(cmd, {

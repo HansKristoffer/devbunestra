@@ -5,6 +5,10 @@ import {
 	startContainers,
 	stopContainers,
 } from "./core/docker";
+import {
+	getGeneratedComposePath,
+	writeGeneratedComposeFile,
+} from "./core/compose";
 import { getLocalIp, waitForDevServers, waitForServer } from "./core/network";
 import {
 	computeDevIdentity,
@@ -115,6 +119,14 @@ export function createDevEnvironment<
 
 	const services = config.services;
 	const apps = (config.apps ?? {}) as TApps;
+	const composeFile = getGeneratedComposePath(
+		root,
+		config.docker,
+	).composeFileArg;
+
+	function ensureComposeFile(): string {
+		return writeGeneratedComposeFile(root, services, config.docker);
+	}
 
 	// Compute ports and URLs
 	const ports = computePorts(services, apps, portOffset) as ComputedPorts<
@@ -205,6 +217,7 @@ export function createDevEnvironment<
 		} = startOptions;
 
 		const envVars = buildEnvVars(productionBuild);
+		ensureComposeFile();
 
 		// Log environment info
 		if (verbose) {
@@ -224,7 +237,7 @@ export function createDevEnvironment<
 			startContainers(root, projectName, envVars, {
 				verbose,
 				wait,
-				composeFile: config.options?.composeFile,
+				composeFile,
 			});
 		}
 
@@ -380,6 +393,7 @@ export function createDevEnvironment<
 
 	async function stop(stopOptions: StopOptions = {}): Promise<void> {
 		const { verbose = true, removeVolumes = false } = stopOptions;
+		ensureComposeFile();
 
 		// Run beforeStop hook
 		if (config.hooks?.beforeStop) {
@@ -389,7 +403,7 @@ export function createDevEnvironment<
 		stopContainers(root, projectName, {
 			verbose,
 			removeVolumes,
-			composeFile: config.options?.composeFile,
+			composeFile,
 		});
 	}
 
@@ -511,7 +525,7 @@ export function createDevEnvironment<
 		await spawnWatchdogFn(projectName, root, {
 			timeoutMinutes,
 			verbose: true,
-			composeFile: config.options?.composeFile,
+			composeFile,
 		});
 	}
 
@@ -559,6 +573,7 @@ export function createDevEnvironment<
 		isWorktree: worktree,
 		localIp,
 		root,
+		composeFile,
 
 		// Container management
 		start,
@@ -573,6 +588,7 @@ export function createDevEnvironment<
 
 		// Utilities
 		buildEnvVars,
+		ensureComposeFile,
 		exec,
 		waitForServer: waitForServerUrl,
 		logInfo,

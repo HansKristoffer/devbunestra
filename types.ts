@@ -27,6 +27,98 @@ export interface UrlBuilderContext {
  */
 export type UrlBuilderFn = (ctx: UrlBuilderContext) => string;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Docker Compose Configuration
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Recursive YAML-safe value used for Docker Compose objects.
+ */
+export type DockerComposeNode =
+	| string
+	| number
+	| boolean
+	| null
+	| DockerComposeNode[]
+	| { [key: string]: DockerComposeNode | undefined };
+
+/**
+ * Built-in Docker service presets.
+ */
+export type DockerPresetName = "postgres" | "redis" | "clickhouse";
+
+/**
+ * Docker Compose healthcheck object.
+ */
+export interface DockerComposeHealthcheckRaw {
+	test?: string[] | string;
+	interval?: string;
+	timeout?: string;
+	retries?: number;
+	start_period?: string;
+	disable?: boolean;
+	[composeKey: string]: DockerComposeNode | undefined;
+}
+
+/**
+ * Docker Compose service (raw escape hatch).
+ * Includes common fields plus index signature for advanced keys.
+ */
+export interface DockerComposeServiceRaw {
+	image?: string;
+	container_name?: string;
+	ports?: string[];
+	volumes?: string[];
+	environment?: Record<string, string | number | boolean>;
+	command?: string | string[];
+	entrypoint?: string | string[];
+	depends_on?: string[] | Record<string, DockerComposeNode>;
+	healthcheck?: DockerComposeHealthcheckRaw;
+	ulimits?: Record<string, number | { soft: number; hard: number }>;
+	restart?: string;
+	working_dir?: string;
+	[composeKey: string]: DockerComposeNode | undefined;
+}
+
+/**
+ * Docker Compose volume object.
+ */
+export interface DockerComposeVolumeRaw {
+	driver?: string;
+	driver_opts?: Record<string, string | number | boolean>;
+	[composeKey: string]: DockerComposeNode | undefined;
+}
+
+/**
+ * Helper-friendly preset service definition.
+ */
+export interface DockerPresetServiceDefinition {
+	kind: "preset";
+	preset: DockerPresetName;
+	service?: DockerComposeServiceRaw;
+}
+
+/**
+ * Docker service definition accepted by service config.
+ * - raw object is the manual escape hatch
+ * - helper mode returns `kind`-based definitions
+ */
+export type DockerServiceDefinition =
+	| DockerComposeServiceRaw
+	| DockerPresetServiceDefinition;
+
+/**
+ * Docker Compose generation configuration.
+ */
+export interface DockerComposeGenerationOptions {
+	/** Path to generated compose file relative to root. Default: '.buncargo/docker-compose.generated.yml' */
+	generatedFile?: string;
+	/** Write strategy for generated compose file. Default: 'always' */
+	writeStrategy?: "always" | "if-missing";
+	/** Extra top-level named volumes */
+	volumes?: Record<string, DockerComposeVolumeRaw>;
+}
+
 /**
  * Configuration for a Docker Compose service (e.g., postgres, redis).
  */
@@ -53,6 +145,8 @@ export interface ServiceConfig {
 	user?: string;
 	/** Password (default: 'postgres' for postgres, 'root' for mysql, 'clickhouse' for clickhouse) */
 	password?: string;
+	/** Docker Compose service definition (preset helper or raw escape hatch) */
+	docker?: DockerServiceDefinition;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -269,8 +363,6 @@ export interface DevOptions {
 	worktreeIsolation?: boolean;
 	/** Auto-shutdown after idle time in ms. Set to false to disable. Default: false */
 	autoShutdown?: number | false;
-	/** Path to docker-compose.yml relative to root. Default: 'docker-compose.yml' */
-	composeFile?: string;
 	/** Default verbose setting for all operations. Default: true */
 	verbose?: boolean;
 }
@@ -327,6 +419,8 @@ export interface DevConfig<
 	prisma?: PrismaConfig;
 	/** Additional options (optional) */
 	options?: DevOptions;
+	/** Docker Compose generation options (optional) */
+	docker?: DockerComposeGenerationOptions;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -436,6 +530,8 @@ export interface DevEnvironment<
 	readonly localIp: string;
 	/** Path to monorepo root */
 	readonly root: string;
+	/** Path passed to docker compose -f */
+	readonly composeFile: string;
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// Container Management
@@ -473,6 +569,8 @@ export interface DevEnvironment<
 
 	/** Build environment variables for shell commands */
 	buildEnvVars(production?: boolean): Record<string, string>;
+	/** Ensure generated docker compose file exists and return path used with -f */
+	ensureComposeFile(): string;
 	/** Execute a command with environment variables set */
 	exec(
 		cmd: string,

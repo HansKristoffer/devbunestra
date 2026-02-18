@@ -13,6 +13,14 @@ export {
 } from "./config";
 // Environment factory
 export { createDevEnvironment } from "./environment";
+// Service helpers
+export { service } from "./core/docker-services";
+export type {
+	ClickhouseServiceOptions,
+	CustomServiceOptions,
+	PostgresServiceOptions,
+	RedisServiceOptions,
+} from "./core/docker-services";
 // Lint / Typecheck
 export {
 	runWorkspaceTypecheck,
@@ -37,11 +45,19 @@ export type {
 	ComputedUrls,
 	// Main config
 	DevConfig,
+	DockerComposeGenerationOptions,
+	DockerComposeHealthcheckRaw,
+	DockerComposeNode,
+	DockerComposeServiceRaw,
+	DockerComposeVolumeRaw,
 	// Environment interface
 	DevEnvironment,
 	DevHooks,
 	DevOptions,
 	DevServerPids,
+	DockerPresetName,
+	DockerPresetServiceDefinition,
+	DockerServiceDefinition,
 	EnvVarsBuilder,
 	ExecOptions,
 	HealthCheckFn,
@@ -67,6 +83,13 @@ export type {
 // Core Utilities (for advanced use cases)
 // ═══════════════════════════════════════════════════════════════════════════
 
+export {
+	buildComposeModel,
+	composeToYaml,
+	DEFAULT_GENERATED_COMPOSE_FILE,
+	getGeneratedComposePath,
+	writeGeneratedComposeFile,
+} from "./core/compose";
 export {
 	areContainersRunning,
 	assertDockerRunning,

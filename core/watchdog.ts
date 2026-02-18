@@ -120,6 +120,10 @@ export function getWatchdogPid(projectName: string): number | null {
  * Spawn watchdog as a detached process.
  * The watchdog monitors the heartbeat file and shuts down containers after idle timeout.
  */
+export function getWatchdogComposeArg(composeFile?: string): string {
+	return composeFile ? `-f "${composeFile}"` : "";
+}
+
 export async function spawnWatchdog(
 	projectName: string,
 	root: string,
@@ -162,7 +166,7 @@ export async function spawnWatchdog(
 			WATCHDOG_HEARTBEAT_FILE: getHeartbeatFile(projectName),
 			WATCHDOG_PID_FILE: pidFile,
 			WATCHDOG_TIMEOUT_MS: String(timeoutMinutes * 60 * 1000),
-			WATCHDOG_COMPOSE_ARG: composeFile ? `-f ${composeFile}` : "",
+			WATCHDOG_COMPOSE_ARG: getWatchdogComposeArg(composeFile),
 		},
 	});
 

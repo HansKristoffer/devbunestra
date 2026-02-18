@@ -155,6 +155,7 @@ export async function runCli<
 		await spawnWatchdog(env.projectName, env.root, {
 			timeoutMinutes: watchdogTimeout,
 			verbose: true,
+			composeFile: env.composeFile,
 		});
 		startHeartbeat(env.projectName);
 	}

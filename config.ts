@@ -1,14 +1,23 @@
+import { isAbsolute, normalize } from "node:path";
 import type {
 	AppConfig,
 	DevConfig,
 	DevHooks,
 	DevOptions,
+	DockerComposeGenerationOptions,
 	EnvVarsBuilder,
 	MigrationConfig,
 	PrismaConfig,
 	SeedConfig,
 	ServiceConfig,
 } from "./types";
+
+const BUILTIN_DOCKER_PRESETS = new Set(["postgres", "redis", "clickhouse"]);
+
+function inferBuiltInPreset(serviceName: string): string | null {
+	const normalized = serviceName.toLowerCase();
+	return BUILTIN_DOCKER_PRESETS.has(normalized) ? normalized : null;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Config Factory
@@ -71,6 +80,8 @@ export function defineDevConfig<
 	prisma?: PrismaConfig;
 	/** Additional options (optional) */
 	options?: DevOptions;
+	/** Docker Compose generation options (optional) */
+	docker?: DockerComposeGenerationOptions;
 }): DevConfig<TServices, TApps> {
 	return config as DevConfig<TServices, TApps>;
 }
@@ -87,6 +98,7 @@ export function validateConfig<
 	TApps extends Record<string, AppConfig>,
 >(config: DevConfig<TServices, TApps>): string[] {
 	const errors: string[] = [];
+	const composeServiceNames = new Set<string>();
 
 	// Check project prefix
 	if (!config.projectPrefix) {
@@ -108,6 +120,65 @@ export function validateConfig<
 		}
 		if (service.port < 1 || service.port > 65535) {
 			errors.push(`Service "${name}" port must be between 1 and 65535`);
+		}
+		if (
+			service.secondaryPort !== undefined &&
+			(service.secondaryPort < 1 || service.secondaryPort > 65535)
+		) {
+			errors.push(`Service "${name}" secondaryPort must be between 1 and 65535`);
+		}
+
+		const composeServiceName = service.serviceName ?? name;
+		if (composeServiceNames.has(composeServiceName)) {
+			errors.push(
+				`Duplicate compose service name "${composeServiceName}". Use unique serviceName values.`,
+			);
+		}
+		composeServiceNames.add(composeServiceName);
+
+		const dockerConfig = service.docker;
+		const preset = inferBuiltInPreset(name);
+		if (!dockerConfig && !preset) {
+			errors.push(
+				`Service "${name}" must define docker config (helper or raw) because it has no built-in preset.`,
+			);
+		}
+		if (
+			dockerConfig &&
+			typeof dockerConfig === "object" &&
+			"kind" in dockerConfig &&
+			dockerConfig.kind === "preset"
+		) {
+			const presetName = dockerConfig.preset;
+			if (typeof presetName !== "string" || !BUILTIN_DOCKER_PRESETS.has(presetName)) {
+				errors.push(
+					`Service "${name}" has invalid docker preset "${presetName}".`,
+				);
+			}
+		}
+	}
+
+	// Check docker compose generation config
+
+	if (config.docker?.writeStrategy) {
+		const writeStrategy = config.docker.writeStrategy;
+		if (writeStrategy !== "always" && writeStrategy !== "if-missing") {
+			errors.push(
+				`docker.writeStrategy "${String(writeStrategy)}" is invalid. Use "always" or "if-missing".`,
+			);
+		}
+	}
+
+	if (config.docker?.generatedFile) {
+		const generatedFile = config.docker.generatedFile;
+		if (isAbsolute(generatedFile)) {
+			errors.push("docker.generatedFile must be a relative path inside the repo.");
+		}
+		const normalized = normalize(generatedFile).replace(/\\/g, "/");
+		if (normalized === ".." || normalized.startsWith("../")) {
+			errors.push(
+				"docker.generatedFile cannot point outside the repository root.",
+			);
 		}
 	}
 
@@ -175,6 +246,7 @@ export function mergeConfigs<
 		migrations: overrides.migrations ?? base.migrations,
 		seed: overrides.seed ?? base.seed,
 		options: { ...base.options, ...overrides.options },
+		docker: { ...base.docker, ...overrides.docker },
 	};
 }
 

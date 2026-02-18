@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDevEnvironment } from "./environment";
@@ -65,6 +65,47 @@ describe("createDevEnvironment worktree isolation", () => {
 			process.chdir(root);
 			const env = createDevEnvironment(createBaseConfig(), { suffix: "test" });
 			expect(env.projectName).toBe(getProjectName("myapp", "test-feature-a", root));
+		} finally {
+			process.chdir(originalCwd);
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("createDevEnvironment compose generation", () => {
+	it("uses generated compose path by default", () => {
+		const root = createWorktreeRoot("Feature_Compose_Default");
+		try {
+			process.chdir(root);
+			const env = createDevEnvironment(createBaseConfig());
+			const composeFile = env.ensureComposeFile();
+
+			expect(env.composeFile).toBe(".buncargo/docker-compose.generated.yml");
+			expect(composeFile).toBe(".buncargo/docker-compose.generated.yml");
+			expect(
+				existsSync(join(root, ".buncargo/docker-compose.generated.yml")),
+			).toBe(true);
+		} finally {
+			process.chdir(originalCwd);
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("respects custom generated compose path from docker config", () => {
+		const root = createWorktreeRoot("Feature_Compose_Custom");
+		try {
+			process.chdir(root);
+			const env = createDevEnvironment({
+				...createBaseConfig(),
+				docker: {
+					generatedFile: ".buncargo/custom-compose.yml",
+				},
+			});
+			const composeFile = env.ensureComposeFile();
+
+			expect(env.composeFile).toBe(".buncargo/custom-compose.yml");
+			expect(composeFile).toBe(".buncargo/custom-compose.yml");
+			expect(existsSync(join(root, ".buncargo/custom-compose.yml"))).toBe(true);
 		} finally {
 			process.chdir(originalCwd);
 			rmSync(root, { recursive: true, force: true });
