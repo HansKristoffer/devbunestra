@@ -1,6 +1,6 @@
 {
 	"name": "buncargo",
-	"version": "1.0.31",
+	"version": "2.0.0",
 	"description": "A Bun-powered development environment CLI for managing Docker Compose services, dev servers, and environment variables",
 	"type": "module",
 	"module": "./dist/index.js",
@@ -129,8 +129,8 @@
 		"publish:patch": "npm version patch && npm publish",
 		"publish:minor": "npm version minor && npm publish",
 		"publish:major": "npm version major && npm publish",
-    "lint": "bun run typecheck && biome check src example",
-    "lint:write": "bun run typecheck && biome check --fix src example && biome format src example",
+		"lint": "bun run typecheck && biome check src example",
+		"lint:write": "bun run typecheck && biome check --fix src example && biome format src example",
 		"typecheck": "tsgo --incremental"
 	},
 	"devDependencies": {
