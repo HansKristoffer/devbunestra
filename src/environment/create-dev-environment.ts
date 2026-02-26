@@ -1,0 +1,569 @@
+import { assertValidConfig } from "../config";
+import { getLocalIp, waitForDevServers, waitForServer } from "../core/network";
+import {
+	computeDevIdentity,
+	computePorts,
+	computeUrls,
+	findMonorepoRoot,
+} from "../core/ports";
+import {
+	buildApps,
+	execAsync,
+	startDevServers,
+	stopProcess as stopProcessFn,
+} from "../core/process";
+import { isCI as isCIEnv, logExpoApiUrl, logFrontendPort } from "../core/utils";
+import {
+	spawnWatchdog as spawnWatchdogFn,
+	startHeartbeat as startHeartbeatFn,
+	stopHeartbeat as stopHeartbeatFn,
+	stopWatchdog as stopWatchdogFn,
+} from "../core/watchdog";
+import {
+	areContainersRunning,
+	startContainers,
+	stopContainers,
+} from "../docker/runtime";
+import {
+	getGeneratedComposePath,
+	writeGeneratedComposeFile,
+} from "../docker-compose";
+import { createPrismaRunner } from "../prisma";
+import type {
+	AppConfig,
+	ComputedPorts,
+	ComputedPublicUrls,
+	ComputedUrls,
+	DevConfig,
+	DevEnvironment,
+	DevServerPids,
+	ExecOptions,
+	HookContext,
+	PrismaRunner,
+	ServiceConfig,
+	StartOptions,
+	StopOptions,
+} from "../types";
+import { logEnvironmentInfo } from "./logging";
+import { createCheckTableHelper, createSeedCheckContext } from "./seeding";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Environment Factory
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Create a dev environment from a configuration.
+ *
+ * @example
+ * ```typescript
+ * import { defineDevConfig, createDevEnvironment } from 'buncargo'
+ *
+ * const config = defineDevConfig({
+ *   projectPrefix: 'myapp',
+ *   services: { postgres: { port: 5432 } },
+ *   apps: { api: { port: 3000, devCommand: 'bun run dev' } }
+ * })
+ *
+ * export const dev = createDevEnvironment(config)
+ *
+ * // Usage
+ * await dev.start()
+ * ```
+ */
+export function createDevEnvironment<
+	TServices extends Record<string, ServiceConfig>,
+	TApps extends Record<string, AppConfig>,
+>(
+	config: DevConfig<TServices, TApps>,
+	options: { suffix?: string } = {},
+): DevEnvironment<TServices, TApps> {
+	// Validate config
+	assertValidConfig(config);
+
+	// Compute environment values
+	const root = findMonorepoRoot();
+	const suffix = options.suffix;
+	const identity = computeDevIdentity({
+		projectPrefix: config.projectPrefix,
+		suffix,
+		root,
+		worktreeIsolation: config.options?.worktreeIsolation,
+	});
+	const { worktree, projectSuffix, portOffset, projectName } = identity;
+	const localIp = getLocalIp();
+
+	const services = config.services;
+	const apps = (config.apps ?? {}) as TApps;
+	const composeFile = getGeneratedComposePath(
+		root,
+		config.docker,
+	).composeFileArg;
+
+	function ensureComposeFile(): string {
+		return writeGeneratedComposeFile(root, services, config.docker);
+	}
+
+	// Compute ports and URLs
+	const ports = computePorts(services, apps, portOffset) as ComputedPorts<
+		TServices,
+		TApps
+	>;
+	const urls = computeUrls(services, apps, ports, localIp) as ComputedUrls<
+		TServices,
+		TApps
+	>;
+	const publicUrls: Record<string, string> = {};
+
+	function setPublicUrls(urlsInput: Record<string, string>): void {
+		for (const key of Object.keys(publicUrls)) {
+			delete publicUrls[key];
+		}
+		for (const [key, value] of Object.entries(urlsInput)) {
+			publicUrls[key] = value;
+		}
+	}
+
+	function clearPublicUrls(): void {
+		for (const key of Object.keys(publicUrls)) {
+			delete publicUrls[key];
+		}
+	}
+
+	// Build environment variables
+	function buildEnvVars(production = false): Record<string, string> {
+		const baseEnv: Record<string, string> = {
+			COMPOSE_PROJECT_NAME: projectName,
+			NODE_ENV: production ? "production" : "development",
+		};
+
+		// Add port environment variables for docker-compose
+		for (const [name, port] of Object.entries(ports)) {
+			const envName = `${name.toUpperCase()}_PORT`;
+			baseEnv[envName] = String(port);
+		}
+
+		// Add URL environment variables
+		for (const [name, url] of Object.entries(urls)) {
+			const envName = `${name.toUpperCase()}_URL`;
+			baseEnv[envName] = url;
+		}
+
+		// Add public URL environment variables when tunnels are active
+		for (const [name, url] of Object.entries(publicUrls)) {
+			const envName = `${name.toUpperCase()}_PUBLIC_URL`;
+			baseEnv[envName] = url;
+		}
+
+		// Call user's envVars function if provided
+		if (config.envVars) {
+			const userEnv = config.envVars(ports, urls, {
+				projectName,
+				localIp,
+				portOffset,
+				publicUrls: publicUrls as ComputedPublicUrls<TServices, TApps>,
+			});
+			for (const [key, value] of Object.entries(userEnv)) {
+				baseEnv[key] = String(value);
+			}
+		}
+
+		return baseEnv;
+	}
+
+	// Memoized hook context (created once, reused)
+	let hookContext: HookContext<TServices, TApps> | null = null;
+
+	function getHookContext(): HookContext<TServices, TApps> {
+		if (!hookContext) {
+			hookContext = {
+				projectName,
+				ports,
+				urls,
+				publicUrls: publicUrls as ComputedPublicUrls<TServices, TApps>,
+				root,
+				isCI: isCIEnv(),
+				portOffset,
+				localIp,
+				exec: async (cmd, opts) => {
+					const envVars = buildEnvVars();
+					return execAsync(cmd, root, envVars, opts);
+				},
+			};
+		}
+		return hookContext;
+	}
+
+	// Execute command helper
+	function exec(cmd: string, options?: ExecOptions) {
+		const envVars = buildEnvVars();
+		return execAsync(cmd, root, envVars, options);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Container Management
+	// ─────────────────────────────────────────────────────────────────────────
+
+	async function start(
+		startOptions: StartOptions = {},
+	): Promise<DevServerPids | null> {
+		const isCI = process.env.CI === "true";
+		const {
+			verbose = config.options?.verbose ?? true,
+			wait = true,
+			startServers: shouldStartServers = true,
+			productionBuild = isCI,
+			skipSeed = false,
+		} = startOptions;
+
+		const envVars = buildEnvVars(productionBuild);
+		ensureComposeFile();
+
+		// Log environment info
+		if (verbose) {
+			logInfo(productionBuild ? "Production Environment" : "Dev Environment");
+		}
+
+		// Start containers
+		const serviceCount = Object.keys(services).length;
+		const alreadyRunning = await areContainersRunning(
+			projectName,
+			serviceCount,
+		);
+
+		if (alreadyRunning) {
+			if (verbose) console.log("✓ Containers already running");
+		} else {
+			startContainers(root, projectName, envVars, {
+				verbose,
+				wait,
+				composeFile,
+			});
+		}
+
+		// Build migrations list (auto-add prisma if configured)
+		const allMigrations = [
+			// Auto-add prisma migration if prisma is configured
+			...(config.prisma
+				? [
+						{
+							name: "prisma",
+							command: "bunx prisma migrate deploy",
+							cwd: config.prisma.cwd ?? "packages/prisma",
+						},
+					]
+				: []),
+			// Add user-defined migrations
+			...(config.migrations ?? []),
+		];
+
+		// Run migrations if any
+		if (allMigrations.length > 0) {
+			if (verbose) console.log("📦 Running migrations...");
+
+			const migrationResults = await Promise.all(
+				allMigrations.map(async (migration) => {
+					const result = await exec(migration.command, {
+						cwd: migration.cwd,
+						throwOnError: false,
+					});
+					return { name: migration.name, result };
+				}),
+			);
+
+			// Check for failures
+			for (const { name, result } of migrationResults) {
+				if (result.exitCode !== 0) {
+					console.error(`❌ Migration "${name}" failed`);
+					if (result.stdout) {
+						console.error(result.stdout);
+					}
+					if (result.stderr) {
+						console.error(result.stderr);
+					}
+					throw new Error(`Migration "${name}" failed`);
+				}
+			}
+
+			if (verbose) console.log("✓ Migrations complete");
+		}
+
+		// Run afterContainersReady hook
+		if (config.hooks?.afterContainersReady) {
+			await config.hooks.afterContainersReady(getHookContext());
+		}
+
+		// Run seed if configured (skip if skipSeed is true, e.g., when CLI handles seeding)
+		if (config.seed && !skipSeed) {
+			let shouldSeed = true;
+
+			// Check if seeding is needed using check function
+			if (config.seed.check) {
+				const checkTable = createCheckTableHelper<TServices, TApps>(
+					urls as Record<string, string>,
+					exec,
+				);
+				const seedCheckContext = createSeedCheckContext(
+					getHookContext(),
+					checkTable,
+				);
+				shouldSeed = await config.seed.check(seedCheckContext);
+			}
+
+			if (shouldSeed) {
+				if (verbose) console.log("🌱 Running seeders...");
+				const seedResult = await exec(config.seed.command, {
+					cwd: config.seed.cwd,
+					verbose,
+					throwOnError: false,
+				});
+				if (seedResult.exitCode !== 0) {
+					console.error("❌ Seeding failed");
+					console.error(seedResult.stderr);
+					// Don't throw - seeding failure shouldn't stop the environment
+				} else {
+					if (verbose) console.log("✓ Seeding complete");
+				}
+			} else {
+				if (verbose)
+					console.log("✓ Database already has data, skipping seeders");
+			}
+		}
+
+		// Start servers if requested
+		if (shouldStartServers && Object.keys(apps).length > 0) {
+			// Run beforeServers hook
+			if (config.hooks?.beforeServers) {
+				await config.hooks.beforeServers(getHookContext());
+			}
+
+			// Build if production
+			if (productionBuild) {
+				buildApps(apps, root, envVars, { verbose });
+			}
+
+			// Start servers
+			const pids = await startDevServers(apps, root, envVars, ports, {
+				verbose,
+				productionBuild,
+				isCI,
+			});
+
+			// Wait for servers to be ready
+			if (verbose) console.log("⏳ Waiting for servers to be ready...");
+			await waitForDevServers(apps, ports, {
+				timeout: isCI ? 120000 : 60000,
+				verbose,
+				productionBuild,
+			});
+
+			// Run afterServers hook
+			if (config.hooks?.afterServers) {
+				await config.hooks.afterServers(getHookContext());
+			}
+
+			if (verbose) console.log("✅ Environment ready\n");
+			return pids;
+		}
+
+		if (verbose) console.log("✅ Containers ready\n");
+		return null;
+	}
+
+	async function stop(stopOptions: StopOptions = {}): Promise<void> {
+		const { verbose = true, removeVolumes = false } = stopOptions;
+		ensureComposeFile();
+
+		// Run beforeStop hook
+		if (config.hooks?.beforeStop) {
+			await config.hooks.beforeStop(getHookContext());
+		}
+
+		stopContainers(root, projectName, {
+			verbose,
+			removeVolumes,
+			composeFile,
+		});
+	}
+
+	async function restart(): Promise<void> {
+		await stop();
+		await start({ startServers: false });
+	}
+
+	async function isRunning(): Promise<boolean> {
+		const serviceCount = Object.keys(services).length;
+		return areContainersRunning(projectName, serviceCount);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Server Management
+	// ─────────────────────────────────────────────────────────────────────────
+
+	async function startServersOnly(
+		options: { productionBuild?: boolean; verbose?: boolean } = {},
+	): Promise<DevServerPids> {
+		const { productionBuild = false, verbose = true } = options;
+		const envVars = buildEnvVars(productionBuild);
+		const isCI = process.env.CI === "true";
+
+		// Build if production
+		if (productionBuild) {
+			buildApps(apps, root, envVars, { verbose });
+		}
+
+		return startDevServers(apps, root, envVars, ports, {
+			verbose,
+			productionBuild,
+			isCI,
+		});
+	}
+
+	async function waitForServersReady(
+		options: { timeout?: number; productionBuild?: boolean } = {},
+	): Promise<void> {
+		const { timeout = 60000, productionBuild = false } = options;
+		await waitForDevServers(apps, ports, { timeout, productionBuild });
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Utilities
+	// ─────────────────────────────────────────────────────────────────────────
+
+	function logInfo(label = "Docker Dev"): void {
+		logEnvironmentInfo({
+			label,
+			projectName,
+			services,
+			apps,
+			ports: ports as Record<string, number>,
+			localIp,
+			worktree,
+			portOffset,
+			projectSuffix,
+		});
+	}
+
+	async function waitForServerUrl(
+		url: string,
+		timeout?: number,
+	): Promise<void> {
+		await waitForServer(url, { timeout });
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Watchdog / Heartbeat
+	// ─────────────────────────────────────────────────────────────────────────
+
+	function startHeartbeat(intervalMs?: number): void {
+		startHeartbeatFn(projectName, intervalMs);
+	}
+
+	function stopHeartbeat(): void {
+		stopHeartbeatFn();
+	}
+
+	async function spawnWatchdog(timeoutMinutes?: number): Promise<void> {
+		await spawnWatchdogFn(projectName, root, {
+			timeoutMinutes,
+			verbose: true,
+			composeFile,
+		});
+	}
+
+	function stopWatchdog(): void {
+		stopWatchdogFn(projectName);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Vibe Kanban Integration
+	// ─────────────────────────────────────────────────────────────────────────
+
+	function getExpoApiUrl(): string {
+		const apiPort = (ports as Record<string, number>).api;
+		const url = `http://${localIp}:${apiPort}`;
+		logExpoApiUrl(url);
+		return url;
+	}
+
+	function getFrontendPort(): number | undefined {
+		const port = (ports as Record<string, number>).platform;
+		logFrontendPort(port);
+		return port;
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Advanced
+	// ─────────────────────────────────────────────────────────────────────────
+
+	function withSuffix(newSuffix: string): DevEnvironment<TServices, TApps> {
+		return createDevEnvironment(config, { suffix: newSuffix });
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Return Environment Object
+	// ─────────────────────────────────────────────────────────────────────────
+
+	// Build base environment
+	const env: DevEnvironment<TServices, TApps> = {
+		// Configuration access
+		projectName,
+		ports,
+		urls,
+		publicUrls: publicUrls as ComputedPublicUrls<TServices, TApps>,
+		services,
+		apps,
+		portOffset,
+		isWorktree: worktree,
+		localIp,
+		root,
+		composeFile,
+
+		// Container management
+		start,
+		stop,
+		restart,
+		isRunning,
+
+		// Server management
+		startServers: startServersOnly,
+		stopProcess: stopProcessFn,
+		waitForServers: waitForServersReady,
+
+		// Utilities
+		buildEnvVars,
+		setPublicUrls: (urlsInput) => {
+			setPublicUrls(urlsInput as Record<string, string>);
+		},
+		clearPublicUrls,
+		ensureComposeFile,
+		exec,
+		waitForServer: waitForServerUrl,
+		logInfo,
+
+		// Vibe Kanban Integration
+		getExpoApiUrl,
+		getFrontendPort,
+
+		// Watchdog / Heartbeat
+		startHeartbeat,
+		stopHeartbeat,
+		spawnWatchdog,
+		stopWatchdog,
+
+		// Prisma (created below if configured)
+		prisma: undefined,
+
+		// Advanced
+		withSuffix,
+	};
+
+	// Create prisma runner if configured
+	if (config.prisma) {
+		(env as { prisma: PrismaRunner }).prisma = createPrismaRunner(
+			env,
+			config.prisma,
+		);
+	}
+
+	return env;
+}

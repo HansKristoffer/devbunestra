@@ -1,6 +1,6 @@
 // In this repository we import local source for accurate in-progress types.
 // In external projects, use: import { defineDevConfig, service } from "buncargo";
-import { defineDevConfig, service } from "../index";
+import { defineDevConfig, service } from "../src";
 
 export default defineDevConfig({
 	projectPrefix: "custom",
@@ -14,6 +14,7 @@ export default defineDevConfig({
 		}),
 		rabbitmq: service.custom({
 			port: 5672,
+			expose: true,
 			healthCheck: false,
 			docker: {
 				image: "rabbitmq:3-management-alpine",

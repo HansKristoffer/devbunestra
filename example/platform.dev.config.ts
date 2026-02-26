@@ -1,6 +1,6 @@
 // In this repository we import local source for accurate in-progress types.
 // In external projects, use: import { defineDevConfig, service } from "buncargo";
-import { defineDevConfig, service } from "../index";
+import { defineDevConfig, service } from "../src";
 
 export default defineDevConfig({
 	projectPrefix: "gey",
@@ -14,6 +14,7 @@ export default defineDevConfig({
 	apps: {
 		api: {
 			port: 3000,
+			expose: true,
 			devCommand: "bun run dev",
 			cwd: "apps/backend",
 			healthEndpoint: "/api/webhooks/health",
@@ -51,5 +52,4 @@ export default defineDevConfig({
 	prisma: {
 		cwd: "packages/prisma",
 	},
-
 });

@@ -1,10 +1,36 @@
 # Buncargo
 
-Type-safe development environment CLI for config-driven Docker Compose projects. Handles container lifecycle, port isolation for git worktrees, dev server orchestration, and auto-generated compose files. It's easy!
+A Bun-first development environment toolkit that eliminates the friction of local dev setup. Define your entire dev stack in a single typed config file—Docker services, app servers, environment variables, migrations, and more.
+
+## Why Buncargo?
+
+**The problem**: Local development environments are fragile. Teams maintain separate `docker-compose.yml` files, scatter port assignments across `.env` files, manually manage container lifecycles, and struggle with port conflicts when working on multiple branches.
+
+**The solution**: Buncargo provides a single source of truth for your dev environment. One `dev.config.ts` file defines everything. Type-safe. Auto-generated Docker Compose. Worktree-aware port isolation. Zero configuration drift.
+
+## Key Features
+
+- **Single config file** — Define services, apps, ports, URLs, migrations, and hooks in one typed `dev.config.ts`
+- **Auto-generated Docker Compose** — No manual compose files; buncargo generates them from your config
+- **Worktree isolation** — Each git worktree gets unique ports and isolated containers automatically
+- **Built-in service presets** — One-liner setup for Postgres, Redis, ClickHouse with health checks and URL templates
+- **Custom service support** — Full Docker Compose escape hatch for any service
+- **Dev server orchestration** — Start and monitor multiple app servers with health checks
+- **Public tunnels** — Expose services via Cloudflare Quick Tunnels for webhook testing and mobile dev
+- **Prisma integration** — Run Prisma commands with auto-injected `DATABASE_URL`
+- **Lifecycle hooks** — Run migrations, seeders, or custom scripts at the right time
+- **Programmatic API** — Access ports/URLs in tests or scripts
+- **Watchdog auto-shutdown** — Containers stop automatically after inactivity
 
 ## Quick Start
 
-### 1. Create `dev.config.ts` in your project root
+### 1. Install
+
+```bash
+bun add -d buncargo
+```
+
+### 2. Create `dev.config.ts`
 
 ```typescript
 import { defineDevConfig, service } from 'buncargo'
@@ -15,98 +41,174 @@ export default defineDevConfig({
   services: {
     postgres: service.postgres({ database: 'mydb' }),
     redis: service.redis(),
-    clickhouse: service.clickhouse({ database: 'analytics' }),
-    rabbitmq: service.custom({
-      port: 5672,
-      healthCheck: false,
-      docker: {
-        image: 'rabbitmq:3-management-alpine',
-        ports: ['${RABBITMQ_PORT:-5672}:5672']
-      }
-    })
   },
 
   apps: {
     api: {
       port: 3000,
       devCommand: 'bun run dev',
-      cwd: 'apps/backend'
+      cwd: 'apps/backend',
     },
     web: {
       port: 5173,
       devCommand: 'bun run dev',
-      cwd: 'apps/frontend'
-    }
+      cwd: 'apps/frontend',
+    },
   },
 
   envVars: (ports, urls) => ({
     DATABASE_URL: urls.postgres,
     REDIS_URL: urls.redis,
-    API_PORT: ports.api
+    API_PORT: ports.api,
   }),
-
-  hooks: {
-    afterContainersReady: async (ctx) => {
-      await ctx.exec('bunx prisma migrate deploy', { cwd: 'packages/prisma' })
-    }
-  },
-
-  prisma: {
-    cwd: 'packages/prisma'
-  }
 })
 ```
 
-### 2. Run it
-
-```bash
-bunx buncargo dev           # Start containers + dev servers
-bunx buncargo dev --up-only # Start containers only
-bunx buncargo dev --down    # Stop containers
-bunx buncargo dev --reset   # Stop and remove volumes
-bunx buncargo typecheck     # Run TypeScript typecheck across workspaces
-bunx buncargo prisma studio # Run prisma with correct DATABASE_URL
-bunx buncargo env           # Print ports/urls as JSON
-```
-
-Or add scripts to `package.json`:
+### 3. Add scripts to `package.json`
 
 ```json
 {
   "scripts": {
     "dev": "bunx buncargo dev",
-    "dev:docker:down": "bunx buncargo dev --down",
-    "typecheck": "bunx buncargo typecheck",
+    "dev:up": "bunx buncargo dev --up-only",
+    "dev:down": "bunx buncargo dev --down",
+    "dev:reset": "bunx buncargo dev --reset",
+    "dev:expose": "bunx buncargo dev --expose",
     "prisma": "bunx buncargo prisma"
   }
 }
 ```
 
-## Programmatic Access
+### 4. Run
 
-Need ports/urls in your code (e.g., for tests)?
-
-```typescript
-import { loadDevEnv } from 'buncargo'
-
-const env = await loadDevEnv()
-console.log(env.ports.postgres)  // 5432 (or offset port)
-console.log(env.urls.api)        // http://localhost:3000
-console.log(env.urls.postgres)   // postgresql://...
+```bash
+bun run dev
 ```
 
-## Features
+Buncargo will:
+1. Generate a Docker Compose file from your config
+2. Start all containers and wait for health checks
+3. Run any configured migrations
+4. Start your dev servers
+5. Print all ports and URLs
 
-### Worktree Isolation
+## CLI Commands
 
-Each git worktree automatically gets:
+```bash
+bunx buncargo dev              # Start containers + dev servers
+bunx buncargo dev --up-only    # Start containers only (no dev servers)
+bunx buncargo dev --down       # Stop containers
+bunx buncargo dev --reset      # Stop containers and remove volumes
+bunx buncargo dev --expose     # Start with public tunnels for expose:true targets
+bunx buncargo dev --expose=api # Expose specific targets
+bunx buncargo dev --migrate    # Run migrations only
+bunx buncargo dev --seed       # Run migrations and seeders
+bunx buncargo prisma <args>    # Run Prisma CLI with correct DATABASE_URL
+bunx buncargo typecheck        # Run TypeScript typecheck across workspaces
+bunx buncargo env              # Print ports/URLs as JSON
+bunx buncargo help             # Show help
+bunx buncargo version          # Show version
+```
 
-- Unique ports (offset 10-99)
-- Unique Docker Compose project names
+## Services
 
-This means each worktree has isolated containers, networks, and volumes by default.
+### Built-in Presets
 
-If you intentionally want shared Docker state across worktrees, set:
+Use `service.*` helpers for common databases with sensible defaults:
+
+```typescript
+services: {
+  postgres: service.postgres({ database: 'mydb' }),
+  redis: service.redis(),
+  clickhouse: service.clickhouse({ database: 'analytics' }),
+}
+```
+
+Each preset includes:
+- Default Docker image
+- Health check configuration
+- URL template (e.g., `postgresql://postgres:postgres@localhost:5432/mydb`)
+- Volume for data persistence
+
+### Custom Services
+
+Use `service.custom()` for any Docker service:
+
+```typescript
+services: {
+  rabbitmq: service.custom({
+    port: 5672,
+    healthCheck: false,
+    docker: {
+      image: 'rabbitmq:3-management-alpine',
+      ports: ['${RABBITMQ_PORT:-5672}:5672', '15672:15672'],
+      environment: {
+        RABBITMQ_DEFAULT_USER: 'guest',
+        RABBITMQ_DEFAULT_PASS: 'guest',
+      },
+    },
+  }),
+  nats: service.custom({
+    port: 4222,
+    docker: {
+      image: 'nats:2-alpine',
+      ports: ['${NATS_PORT:-4222}:4222'],
+    },
+  }),
+}
+```
+
+## Apps
+
+Define dev servers to run alongside containers:
+
+```typescript
+apps: {
+  api: {
+    port: 3000,
+    devCommand: 'bun run dev',
+    cwd: 'apps/backend',
+    healthEndpoint: '/health',
+  },
+  web: {
+    port: 5173,
+    devCommand: 'bun run dev',
+    cwd: 'apps/frontend',
+    healthEndpoint: '/',
+  },
+}
+```
+
+## Environment Variables
+
+The `envVars` function builds all env vars from computed ports and URLs:
+
+```typescript
+envVars: (ports, urls, { localIp, publicUrls }) => ({
+  DATABASE_URL: urls.postgres,
+  REDIS_URL: urls.redis,
+  API_PORT: ports.api,
+  EXPO_API_URL: `http://${localIp}:${ports.api}`,
+  WEBHOOK_URL: publicUrls.api ?? urls.api,
+})
+```
+
+These are injected into:
+- Docker Compose services
+- Dev server processes
+- Hook `exec()` calls
+- Prisma commands
+
+## Worktree Isolation
+
+When working in git worktrees, buncargo automatically assigns unique port offsets (10-99) so each worktree has isolated:
+- Ports (e.g., postgres on 5442 instead of 5432)
+- Docker Compose project names
+- Containers, networks, and volumes
+
+This means you can run multiple branches simultaneously without conflicts.
+
+To disable isolation and share state across worktrees:
 
 ```typescript
 options: {
@@ -114,91 +216,65 @@ options: {
 }
 ```
 
-### Health Checks
+## Public Tunnels
 
-Built-in health checks for common services:
-
-- `pg_isready` - PostgreSQL
-- `redis-cli` - Redis
-- `http` - HTTP endpoint check
-- `tcp` - TCP port check
-
-### URL Templates
-
-Define connection URLs as functions:
-
-```typescript
-urlTemplate: ({ port, host, localIp }) => 
-  `postgresql://user:pass@${host}:${port}/db`
-```
-
-Default templates exist for: `postgres`, `redis`, `clickhouse`, `mysql`, `mongodb`
-
-### Auto-Generated Docker Compose
-
-`buncargo` generates Docker Compose from `dev.config.ts` only.
-
-- No external `docker-compose.yml` is read.
-- Built-in service presets are available for `postgres`, `redis`, and `clickhouse`.
-- Fast path: use `service.postgres()`, `service.redis()`, `service.clickhouse()`.
-- Custom path: use `service.custom({ port, docker: { ... } })`.
-
-Generated file location (default):
-
-```typescript
-docker: {
-  generatedFile: '.buncargo/docker-compose.generated.yml',
-  writeStrategy: 'always' // or 'if-missing'
-}
-```
-
-Starter scenario (postgres + redis + clickhouse):
-
-```typescript
-export default defineDevConfig({
-  projectPrefix: 'gey',
-  services: {
-    postgres: service.postgres({ database: 'geysier' }),
-    redis: service.redis(),
-    clickhouse: service.clickhouse({ database: 'geysier' })
-  }
-})
-```
-
-Example custom service (raw escape hatch):
+Expose local services to the internet using Cloudflare Quick Tunnels:
 
 ```typescript
 services: {
-  nats: service.custom({
-    port: 4222,
-    docker: {
-      image: 'nats:2-alpine',
-      ports: ['${NATS_PORT:-4222}:4222']
-    }
-  })
+  postgres: service.postgres({ database: 'mydb' }),
+},
+apps: {
+  api: {
+    port: 3000,
+    devCommand: 'bun run dev',
+    expose: true,  // Mark as exposable
+  },
 }
 ```
 
-### Lifecycle Hooks
+```bash
+bun run dev --expose      # Expose all targets with expose: true
+bun run dev --expose=api  # Expose specific targets
+```
+
+Public URLs are printed in the console and available via `publicUrls` in `envVars`:
+
+```typescript
+envVars: (_ports, urls, { publicUrls }) => ({
+  WEBHOOK_URL: publicUrls.api ?? urls.api,
+})
+```
+
+## Lifecycle Hooks
+
+Run code at specific points in the startup/shutdown cycle:
 
 ```typescript
 hooks: {
-  afterContainersReady: async (ctx) => { /* Run migrations */ },
-  beforeServers: async (ctx) => { /* Seed database */ },
-  afterServers: async (ctx) => { /* Post-startup tasks */ },
-  beforeStop: async (ctx) => { /* Cleanup */ }
+  afterContainersReady: async (ctx) => {
+    await ctx.exec('bunx prisma migrate deploy', { cwd: 'packages/prisma' })
+  },
+  beforeServers: async (ctx) => {
+    await ctx.exec('bun run seed')
+  },
+  afterServers: async (ctx) => {
+    console.log(`API running at ${ctx.urls.api}`)
+  },
+  beforeStop: async (ctx) => {
+    await ctx.exec('bun run cleanup', { throwOnError: false })
+  },
 }
 ```
 
-### Hook Context
-
-Hooks receive a context object with:
+Hook context provides:
 
 ```typescript
 interface HookContext {
   projectName: string
   ports: { postgres: number, api: number, ... }
   urls: { postgres: string, api: string, ... }
+  publicUrls: { api?: string, ... }
   root: string
   isCI: boolean
   portOffset: number
@@ -207,51 +283,171 @@ interface HookContext {
 }
 ```
 
-### Watchdog Auto-Shutdown
+## Migrations and Seeding
 
-Containers automatically stop after 10 minutes of inactivity when running via CLI.
+### Migrations
 
-## CLI Reference
-
-```
-COMMANDS:
-  dev                 Start the development environment
-  typecheck           Run TypeScript typecheck across workspaces
-  prisma <args>       Run Prisma CLI with correct DATABASE_URL
-  env                 Print environment info as JSON
-  help                Show help
-  version             Show version
-
-DEV OPTIONS:
-  --up-only           Start containers only (no dev servers)
-  --down              Stop containers
-  --reset             Stop containers and remove volumes
-  --migrate           Run migrations only
-  --seed              Run seeders
-```
-
-## Environment Variables
-
-The `envVars` function receives:
+Run migration commands after containers are healthy:
 
 ```typescript
-envVars: (ports, urls, context) => ({
-  // ports: { postgres: 5432, api: 3000, ... }
-  // urls: { postgres: "postgresql://...", ... }
-  // context: { localIp, portOffset, isCI, root }
+migrations: [
+  { name: 'prisma', command: 'bunx prisma migrate deploy', cwd: 'packages/prisma' },
+  { name: 'clickhouse', command: 'bun run migrate:clickhouse' },
+]
+```
+
+### Seeding
+
+Seed the database with a check to avoid re-seeding:
+
+```typescript
+seed: {
+  command: 'bun run seed',
+  check: ({ checkTable }) => checkTable('User', 'postgres'),
+}
+```
+
+## Prisma Integration
+
+Configure Prisma to use the correct database URL:
+
+```typescript
+prisma: {
+  cwd: 'packages/prisma',
+  service: 'postgres',        // Default: 'postgres'
+  urlEnvVar: 'DATABASE_URL',  // Default: 'DATABASE_URL'
+}
+```
+
+Then run Prisma commands through buncargo:
+
+```bash
+bun run prisma migrate dev
+bun run prisma studio
+bun run prisma db push
+```
+
+Buncargo ensures the database container is running and injects the correct `DATABASE_URL` with worktree-aware ports.
+
+## Programmatic API
+
+Access the dev environment from code (useful for tests):
+
+```typescript
+import { loadDevEnv } from 'buncargo'
+
+const env = await loadDevEnv()
+
+console.log(env.ports.postgres)  // 5432 (or offset port)
+console.log(env.urls.api)        // http://localhost:3000
+console.log(env.urls.postgres)   // postgresql://postgres:postgres@localhost:5432/mydb
+
+// Start/stop programmatically
+await env.start()
+await env.stop({ removeVolumes: true })
+
+// Build env vars for subprocess
+const envVars = env.buildEnvVars()
+```
+
+## Docker Compose Generation
+
+Buncargo generates Docker Compose from your config. No external `docker-compose.yml` is read.
+
+```typescript
+docker: {
+  generatedFile: '.buncargo/docker-compose.generated.yml',
+  writeStrategy: 'always',  // or 'if-missing'
+  volumes: {
+    shared_cache: {},
+  },
+}
+```
+
+## Health Checks
+
+Built-in health check types:
+
+| Type | Description |
+|------|-------------|
+| `pg_isready` | PostgreSQL readiness check |
+| `redis-cli` | Redis PING check |
+| `http` | HTTP endpoint check |
+| `tcp` | TCP port check |
+
+Or provide a custom health check function:
+
+```typescript
+healthCheck: async (port) => {
+  const res = await fetch(`http://localhost:${port}/health`)
+  return res.ok
+}
+```
+
+## Watchdog Auto-Shutdown
+
+When running via CLI, containers automatically stop after 10 minutes of inactivity. The watchdog monitors heartbeats and shuts down orphaned environments.
+
+## Full Example
+
+```typescript
+import { defineDevConfig, service } from 'buncargo'
+
+export default defineDevConfig({
+  projectPrefix: 'platform',
+
+  services: {
+    postgres: service.postgres({ database: 'platform' }),
+    redis: service.redis(),
+    clickhouse: service.clickhouse({ database: 'platform' }),
+  },
+
+  apps: {
+    api: {
+      port: 3000,
+      expose: true,
+      devCommand: 'bun run dev',
+      cwd: 'apps/backend',
+      healthEndpoint: '/health',
+    },
+    web: {
+      port: 5173,
+      devCommand: 'bun run dev',
+      cwd: 'apps/frontend',
+    },
+  },
+
+  envVars: (ports, urls, { localIp, publicUrls }) => ({
+    DATABASE_URL: urls.postgres,
+    REDIS_URL: urls.redis,
+    CLICKHOUSE_URL: urls.clickhouse,
+    API_URL: urls.api,
+    VITE_API_URL: urls.api,
+    EXPO_API_URL: `http://${localIp}:${ports.api}`,
+    WEBHOOK_URL: publicUrls.api ?? urls.api,
+  }),
+
+  migrations: [
+    { name: 'prisma', command: 'bunx prisma migrate deploy', cwd: 'packages/prisma' },
+  ],
+
+  seed: {
+    command: 'bun run seed',
+    check: ({ checkTable }) => checkTable('User', 'postgres'),
+  },
+
+  prisma: {
+    cwd: 'packages/prisma',
+  },
+
+  hooks: {
+    afterContainersReady: async (ctx) => {
+      console.log(`Containers ready on port offset ${ctx.portOffset}`)
+    },
+  },
 })
 ```
 
-These are injected into:
-- Docker Compose (via `COMPOSE_PROJECT_NAME`)
-- Dev server processes
-- Hook `exec()` calls
+## License
 
-## Migration from `docker-compose.yml`
-
-Move service definitions into `dev.config.ts`:
-
-1. Keep `services` as the source of ports/health checks.
-2. For built-ins (`postgres`, `redis`, `clickhouse`), start with the preset defaults.
-3. For everything else, use `service.custom({ port, docker: { ... } })`.
-4. Delete manual compose scripts and run containers through `buncargo` only.
+MIT

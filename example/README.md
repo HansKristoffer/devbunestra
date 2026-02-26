@@ -5,6 +5,7 @@ This folder contains example configurations for `buncargo`.
 - `minimal.dev.config.ts`: Smallest working setup with one built-in service.
 - `platform.dev.config.ts`: Typical multi-service + multi-app platform setup.
 - `custom-services.dev.config.ts`: Shows helper and raw custom Docker service definitions.
+- Public exposure via `expose: true` can be combined with `bunx buncargo dev --expose`.
 
 Recommended style:
 
