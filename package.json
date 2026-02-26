@@ -1,147 +1,147 @@
 {
-	"name": "buncargo",
-	"version": "1.0.31",
-	"description": "A Bun-powered development environment CLI for managing Docker Compose services, dev servers, and environment variables",
-	"type": "module",
-	"module": "./dist/index.js",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"license": "MIT",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/HansKristoffer/buncargo.git"
-	},
-	"author": "Kristoffer Hansen",
-	"keywords": [
-		"bun",
-		"dev-tools",
-		"docker",
-		"docker-compose",
-		"development",
-		"cli",
-		"monorepo",
-		"dev-server",
-		"environment"
-	],
-	"engines": {
-		"bun": ">=1.0.0"
-	},
-	"files": [
-		"src/**/*.ts",
-		"dist",
-		"!src/**/*.test.ts"
-	],
-	"bin": {
-		"dev-tools": "./dist/cli/bin.js",
-		"buncargo": "./dist/cli/bin.js"
-	},
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"bun": "./src/index.ts",
-			"import": "./dist/index.js",
-			"default": "./dist/index.js"
-		},
-		"./types": {
-			"types": "./dist/types/index.d.ts",
-			"bun": "./src/types/index.ts",
-			"import": "./dist/types/index.js",
-			"default": "./dist/types/index.js"
-		},
-		"./config": {
-			"types": "./dist/config/index.d.ts",
-			"bun": "./src/config/index.ts",
-			"import": "./dist/config/index.js",
-			"default": "./dist/config/index.js"
-		},
-		"./environment": {
-			"types": "./dist/environment/index.d.ts",
-			"bun": "./src/environment/index.ts",
-			"import": "./dist/environment/index.js",
-			"default": "./dist/environment/index.js"
-		},
-		"./core/ports": {
-			"types": "./dist/core/ports.d.ts",
-			"bun": "./src/core/ports.ts",
-			"import": "./dist/core/ports.js",
-			"default": "./dist/core/ports.js"
-		},
-		"./core/network": {
-			"types": "./dist/core/network.d.ts",
-			"bun": "./src/core/network.ts",
-			"import": "./dist/core/network.js",
-			"default": "./dist/core/network.js"
-		},
-		"./core/process": {
-			"types": "./dist/core/process.d.ts",
-			"bun": "./src/core/process.ts",
-			"import": "./dist/core/process.js",
-			"default": "./dist/core/process.js"
-		},
-		"./core/watchdog": {
-			"types": "./dist/core/watchdog.d.ts",
-			"bun": "./src/core/watchdog.ts",
-			"import": "./dist/core/watchdog.js",
-			"default": "./dist/core/watchdog.js"
-		},
-		"./core/utils": {
-			"types": "./dist/core/utils.d.ts",
-			"bun": "./src/core/utils.ts",
-			"import": "./dist/core/utils.js",
-			"default": "./dist/core/utils.js"
-		},
-		"./cli": {
-			"types": "./dist/cli/index.d.ts",
-			"bun": "./src/cli/index.ts",
-			"import": "./dist/cli/index.js",
-			"default": "./dist/cli/index.js"
-		},
-		"./typecheck": {
-			"types": "./dist/typecheck/index.d.ts",
-			"bun": "./src/typecheck/index.ts",
-			"import": "./dist/typecheck/index.js",
-			"default": "./dist/typecheck/index.js"
-		},
-		"./loader": {
-			"types": "./dist/loader/index.d.ts",
-			"bun": "./src/loader/index.ts",
-			"import": "./dist/loader/index.js",
-			"default": "./dist/loader/index.js"
-		},
-		"./docker": {
-			"types": "./dist/docker/index.d.ts",
-			"bun": "./src/docker/index.ts",
-			"import": "./dist/docker/index.js",
-			"default": "./dist/docker/index.js"
-		},
-		"./docker-compose": {
-			"types": "./dist/docker-compose/index.d.ts",
-			"bun": "./src/docker-compose/index.ts",
-			"import": "./dist/docker-compose/index.js",
-			"default": "./dist/docker-compose/index.js"
-		}
-	},
-	"scripts": {
-		"build": "bun run build:js && bun run build:types",
-		"build:js": "bun build ./src/index.ts ./src/cli/bin.ts ./src/cli/index.ts ./src/config/index.ts ./src/environment/index.ts ./src/loader/index.ts ./src/typecheck/index.ts ./src/types/index.ts ./src/core/network.ts ./src/core/ports.ts ./src/core/process.ts ./src/core/utils.ts ./src/core/watchdog.ts ./src/docker/index.ts ./src/docker-compose/index.ts --outdir ./dist --root ./src --target node --packages external --splitting",
-		"build:types": "tsc -p tsconfig.build.json",
-		"prepublishOnly": "bun run build",
-		"publish:patch": "npm version patch && npm publish",
-		"publish:minor": "npm version minor && npm publish",
-		"publish:major": "npm version major && npm publish",
+  "name": "buncargo",
+  "version": "1.0.32",
+  "description": "A Bun-powered development environment CLI for managing Docker Compose services, dev servers, and environment variables",
+  "type": "module",
+  "module": "./dist/index.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HansKristoffer/buncargo.git"
+  },
+  "author": "Kristoffer Hansen",
+  "keywords": [
+    "bun",
+    "dev-tools",
+    "docker",
+    "docker-compose",
+    "development",
+    "cli",
+    "monorepo",
+    "dev-server",
+    "environment"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "files": [
+    "src/**/*.ts",
+    "dist",
+    "!src/**/*.test.ts"
+  ],
+  "bin": {
+    "dev-tools": "./dist/cli/bin.js",
+    "buncargo": "./dist/cli/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "bun": "./src/types/index.ts",
+      "import": "./dist/types/index.js",
+      "default": "./dist/types/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "bun": "./src/config/index.ts",
+      "import": "./dist/config/index.js",
+      "default": "./dist/config/index.js"
+    },
+    "./environment": {
+      "types": "./dist/environment/index.d.ts",
+      "bun": "./src/environment/index.ts",
+      "import": "./dist/environment/index.js",
+      "default": "./dist/environment/index.js"
+    },
+    "./core/ports": {
+      "types": "./dist/core/ports.d.ts",
+      "bun": "./src/core/ports.ts",
+      "import": "./dist/core/ports.js",
+      "default": "./dist/core/ports.js"
+    },
+    "./core/network": {
+      "types": "./dist/core/network.d.ts",
+      "bun": "./src/core/network.ts",
+      "import": "./dist/core/network.js",
+      "default": "./dist/core/network.js"
+    },
+    "./core/process": {
+      "types": "./dist/core/process.d.ts",
+      "bun": "./src/core/process.ts",
+      "import": "./dist/core/process.js",
+      "default": "./dist/core/process.js"
+    },
+    "./core/watchdog": {
+      "types": "./dist/core/watchdog.d.ts",
+      "bun": "./src/core/watchdog.ts",
+      "import": "./dist/core/watchdog.js",
+      "default": "./dist/core/watchdog.js"
+    },
+    "./core/utils": {
+      "types": "./dist/core/utils.d.ts",
+      "bun": "./src/core/utils.ts",
+      "import": "./dist/core/utils.js",
+      "default": "./dist/core/utils.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "bun": "./src/cli/index.ts",
+      "import": "./dist/cli/index.js",
+      "default": "./dist/cli/index.js"
+    },
+    "./typecheck": {
+      "types": "./dist/typecheck/index.d.ts",
+      "bun": "./src/typecheck/index.ts",
+      "import": "./dist/typecheck/index.js",
+      "default": "./dist/typecheck/index.js"
+    },
+    "./loader": {
+      "types": "./dist/loader/index.d.ts",
+      "bun": "./src/loader/index.ts",
+      "import": "./dist/loader/index.js",
+      "default": "./dist/loader/index.js"
+    },
+    "./docker": {
+      "types": "./dist/docker/index.d.ts",
+      "bun": "./src/docker/index.ts",
+      "import": "./dist/docker/index.js",
+      "default": "./dist/docker/index.js"
+    },
+    "./docker-compose": {
+      "types": "./dist/docker-compose/index.d.ts",
+      "bun": "./src/docker-compose/index.ts",
+      "import": "./dist/docker-compose/index.js",
+      "default": "./dist/docker-compose/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bun run build:js && bun run build:types",
+    "build:js": "bun build ./src/index.ts ./src/cli/bin.ts ./src/cli/index.ts ./src/config/index.ts ./src/environment/index.ts ./src/loader/index.ts ./src/typecheck/index.ts ./src/types/index.ts ./src/core/network.ts ./src/core/ports.ts ./src/core/process.ts ./src/core/utils.ts ./src/core/watchdog.ts ./src/docker/index.ts ./src/docker-compose/index.ts --outdir ./dist --root ./src --target node --packages external --splitting",
+    "build:types": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build",
+    "publish:patch": "npm version patch && npm publish",
+    "publish:minor": "npm version minor && npm publish",
+    "publish:major": "npm version major && npm publish",
     "lint": "bun run typecheck && biome check src example",
     "lint:write": "bun run typecheck && biome check --fix src example && biome format src example",
-		"typecheck": "tsgo --incremental"
-	},
-	"devDependencies": {
-		"@types/bun": "1.3.2",
-		"@biomejs/biome": "2.3.4",
-		"@typescript/native-preview": "7.0.0-dev.20260127.1",
-		"typescript": "^5.7.0"
-	},
-	"dependencies": {
-		"fast-glob": "^3.3.3",
-		"picocolors": "^1.1.1",
-		"untun": "^0.1.3"
-	}
+    "typecheck": "tsgo --incremental"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.2",
+    "@biomejs/biome": "2.3.4",
+    "@typescript/native-preview": "7.0.0-dev.20260127.1",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.3",
+    "picocolors": "^1.1.1",
+    "untun": "^0.1.3"
+  }
 }
